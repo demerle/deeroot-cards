@@ -39,7 +39,7 @@ namespace DeerootCards.Cards
 
         protected override string GetDescription()
         {
-            return "Your bullets are the telegraph. Two linked teleporters, re-placed with every shot.";
+            return "Every time you block, two linked teleporters appear on and around you.";
         }
 
         protected override CardInfoStat[] GetStats()
@@ -49,15 +49,8 @@ namespace DeerootCards.Cards
                 new CardInfoStat
                 {
                     positive = true,
-                    stat = "Bullets 1 & 2",
-                    amount = "Place two linked teleporters",
-                    simepleAmount = CardInfoStat.SimpleAmount.Some
-                },
-                new CardInfoStat
-                {
-                    positive = true,
-                    stat = "Bullets 3, 4, 5...",
-                    amount = "Relocate them",
+                    stat = "On block",
+                    amount = "Place/re-arm two linked teleporters at your position",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 }
             };
@@ -85,14 +78,14 @@ namespace DeerootCards.Cards
     }
 
     /// <summary>
-    /// Attached to a player. Handles that player's shot counter, spawns/moves
-    /// that player's two portals via a broadcast RPC, and teleports the local
-    /// player when they touch any registered portal.
+    /// Attached to a player. On each block, alternately spawns/moves that
+    /// player's two portals (A then B) at the player's current position, and
+    /// teleports the local player when they touch one of them.
     /// </summary>
     public class PortalEffect : MonoBehaviour
     {
         private Player player;
-        private Gun gun;
+        private Block block;
 
         // ---- shared state registry (replicated identically on every client) ----
         // ownerPlayerID -> [portalA, portalB] positions
@@ -105,12 +98,11 @@ namespace DeerootCards.Cards
         private static Sprite discSprite;
 
         // ---- per-player (per-effect-instance) state ----
-        private int shotCounter;
+        private int blockCounter;
         private float cooldownUntil;
         private bool armed = true;
-        private Gun subscribedGun;
-        private const float portalRadius = 1.1f;
         private const float touchRadius = 0.75f;
+
         private const float teleportCooldown = 0.35f;
 
         public void SetPlayer(Player player)
@@ -124,68 +116,41 @@ namespace DeerootCards.Cards
             {
                 player = GetComponent<Player>();
             }
-            if (subscribedGun == null)
-            {
-                subscribedGun = ResolveGun();
-            }
-            if (subscribedGun != null)
-            {
-                // Fires once per spawned bullet, owner-side only (Gun.CheckIsMine gate).
-                subscribedGun.ShootPojectileAction += OnShot;
-                UnityEngine.Debug.Log($"[DEER] PortalEffect subscribed to gun shots on {player.data.name}");
-            }
-            else
-            {
-                UnityEngine.Debug.LogWarning("[DEER] PortalEffect could not resolve a Gun to subscribe to");
-            }
+            block = player.GetComponent<Block>();
+            block.BlockAction += OnBlock;
+            UnityEngine.Debug.Log($"[DEER] PortalEffect started on player {player.data.name}");
         }
 
         private void OnDestroy()
         {
-            if (subscribedGun != null)
+            if (block != null)
             {
-                try
-                {
-                    subscribedGun.ShootPojectileAction -= OnShot;
-                }
-                catch (Exception) { }
+                block.BlockAction -= OnBlock;
             }
             RemovePortals(player != null ? player.playerID : -1);
         }
 
-        private Gun ResolveGun()
+        private void OnBlock(BlockTrigger.BlockTriggerType triggerType)
         {
-            var holding = player.GetComponent<Holding>();
-            if (holding != null && holding.holdable != null)
-            {
-                return holding.holdable.GetComponent<Gun>();
-            }
-            return FindObjectOfType<Gun>(); // last-resort fallback
-        }
-
-        private void OnShot(GameObject bullet)
-        {
-            if (bullet == null)
+            // Only the owning client decides portal placement; it broadcasts.
+            if (!player.data.view.IsMine)
             {
                 return;
             }
-            int slot = shotCounter % 2;
-            shotCounter++;
-            UnityEngine.Debug.Log($"[DEER] Portal effect shot #{shotCounter} -> slot {slot}");
 
-            var marker = bullet.AddComponent<PortalMarker>();
-            marker.Setup((Vector3 pos) => ReportPortalPosition(slot, pos));
-        }
+            int slot = blockCounter % 2;
+            blockCounter++;
 
-        private void ReportPortalPosition(int slot, Vector3 pos)
-        {
-            Vector3 pos2 = new Vector3(pos.x, pos.y, 0f);
+            Vector3 pos = player.transform.position;
+            pos.z = 0f;
+            UnityEngine.Debug.Log($"[DEER] Portal block #{blockCounter} -> slot {slot} at {pos}");
+
             UnboundLib.NetworkingManager.RPC(
                 typeof(PortalEffect),
                 nameof(RPC_PlacePortal),
                 player.playerID,
                 slot,
-                pos2
+                pos
             );
         }
 
@@ -430,65 +395,8 @@ namespace DeerootCards.Cards
             tex.SetPixels(pixels);
             tex.Apply();
             Sprite sprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), spritesPerUnit);
-            sprite.name = "DEERPortal";
+            sprite.name = "DEERPortalRing";
             return sprite;
-        }
-    }
-
-    /// <summary>
-    /// Attached to each fired bullet by PortalEffect. Reports exactly one world
-    /// position back: the exact impact point if the bullet hits something, otherwise
-    /// wherever the bullet ended up (drag stop / destroy fallback).
-    /// </summary>
-    public class PortalMarker : MonoBehaviour
-    {
-        private Action<Vector3> report;
-        private Vector3 lastPos;
-        private bool reported;
-
-        public void Setup(Action<Vector3> report)
-        {
-            this.report = report;
-            var hit = GetComponent<ProjectileHit>();
-            if (hit != null)
-            {
-                hit.AddHitActionWithData(OnHit);
-            }
-        }
-
-        private void OnHit(HitInfo hitInfo)
-        {
-            if (reported)
-            {
-                return;
-            }
-            Vector3 pos = new Vector3(hitInfo.point.x, hitInfo.point.y, 0f);
-            // Nudge the portal off the impacted surface so it is embedded less.
-            Vector3 normal = hitInfo.normal != default(Vector2) ? (Vector3)hitInfo.normal : Vector3.up * 0.5f;
-            pos = pos + normal.normalized * 0.35f;
-            reported = true;
-            report?.Invoke(pos);
-        }
-
-        private void Update()
-        {
-            lastPos = transform.position;
-
-            var move = GetComponent<MoveTransform>();
-            if (move != null && move.velocity.magnitude <= move.dragMinSpeed && !reported && Time.time >= GetComponent<ProjectileHit>().GetAdditionalData().startTime + 0.25f)
-            {
-                // Bullet has (nearly) stopped — drag(END) — treat as placed here.
-                reported = true;
-                report?.Invoke(lastPos);
-            }
-        }
-
-        private void OnDestroy()
-        {
-            if (!reported && report != null)
-            {
-                report?.Invoke(lastPos);
-            }
         }
     }
 }
