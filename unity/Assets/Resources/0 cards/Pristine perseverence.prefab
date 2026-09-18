@@ -1,0 +1,133 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &1627199534902842
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4797058890456373}
+  - component: {fileID: 114502702588589405}
+  - component: {fileID: 114888131096894696}
+  - component: {fileID: 114259852741797021}
+  - component: {fileID: 114004873132974962}
+  m_Layer: 0
+  m_Name: Pristine perseverence
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4797058890456373
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1627199534902842}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -4, y: 4.57, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 0
+  m_LocalEulerAnglesHint: {x: 0, y: -0, z: -0}
+--- !u!114 &114502702588589405
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1627199534902842}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4b032fe9cba4be49be5bb256561788b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  soundDisableBlockBasic: 0
+  cardName: PRISITNE PERSEVERENCE
+  cardDestription: +400% HP when above 90% HP
+  cardStats: []
+  rarity: 2
+  cardArt: {fileID: 1400327079192671, guid: a1011fdf8382a074e9d88dc0ea27cbe7, type: 3}
+  sprite: {fileID: 21300000, guid: 6d37fc0ca5c1e114e950184faf87fb24, type: 2}
+  sourceCard: {fileID: 0}
+  cardColor: {r: 0.18135901, g: 0.24528301, b: 0.13999642, a: 1}
+  categories: []
+  allowMultiple: 1
+  blacklistedCategories: []
+  cardBase: {fileID: 1720757555582362, guid: ab7829e25091330408953c12456bfb86, type: 3}
+  colorTheme: 2
+--- !u!114 &114888131096894696
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1627199534902842}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d09e61d8798559c41879e0963ec23e72, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  shootToPick: 0
+--- !u!114 &114259852741797021
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1627199534902842}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0a7455d82e3521142be110549e6130ef, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  soundCharacterSlowFreeze: {fileID: 0}
+  AddObjectToPlayer: {fileID: 1456021958384225, guid: 0e6eaabce07ccaa4983ffd78cc0774a8,
+    type: 3}
+  objectsAddedToPlayer: []
+  sizeMultiplier: 1
+  health: 1
+  movementSpeed: 1
+  jump: 1
+  gravity: 1
+  slow: 0
+  slowSlow: 0
+  fastSlow: 0
+  secondsToTakeDamageOver: 0
+  numberOfJumps: 0
+  regen: 0
+  lifeSteal: 0
+  refreshOnDamage: 0
+  automaticReload: 1
+  respawns: 0
+  remainingRespawns: 0
+  tasteOfBloodSpeed: 1
+  rageSpeed: 1
+  attackSpeedMultiplier: 1
+  slowPart: {fileID: 0}
+--- !u!114 &114004873132974962
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1627199534902842}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -1283557461, guid: cc8a520cdc1a71048ac77742d0ea6366, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  Group: 0
+  prefixField: -1
+  observableSearch: 0
+  Synchronization: 0
+  OwnershipTransfer: 0
+  ObservedComponents:
+  - {fileID: 0}
+  viewIdField: 0
+  InstantiationId: 0
+  isRuntimeInstantiated: 0

@@ -1,0 +1,134 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.UI.ProceduralImage;
+
+namespace ClassesManagerReborn.Util
+{
+    public class DestroyOnUnParent : MonoBehaviour
+    {
+        private void LateUpdate()
+        {
+            if (gameObject.transform.parent == null) Destroy(gameObject);
+        }
+    }
+
+    /// <summary>
+    /// Can be added to cards to add text to the lower right hand cornner.
+    /// </summary>
+    public class ClassNameMono : MonoBehaviour
+    {
+        /// <summary>
+        /// The text that will appear in the lower right hand corner of the card.
+        /// </summary>
+        public string className = "Class";
+        /// <summary>
+        /// The color the card back of Class cards will be (Black to disable)
+        /// </summary>
+        public Color ClassDefult = new Color(0.2078f, 0.7686f, 0.0392f, 0.16f);
+        /// <summary>
+        /// The color the card back of SubClass cards will be (Black to disable)
+        /// </summary>
+        public Color SubClassDefult = new Color(0.8679f, 0.5698f, 0f, 0.104f);
+        /// <summary>
+        /// The color the top 2 corners of the card will be (Black for defualt)
+        /// </summary>
+        public Color color1 = Color.black;
+        /// <summary>
+        /// The color the Botton 2 corners of the card will be (Black for defualt)
+        /// </summary>
+        public Color color2 = Color.black;
+        /// <summary>
+        /// The color the card back will be (Black for defualt)
+        /// </summary>
+        public Color cardBackColor = Color.black;
+        private CardInfo card;
+        private void Start()
+        {
+            try
+            {
+                card = gameObject.GetComponent<CardInfo>();
+                var allChildrenRecursive = gameObject.GetComponentsInChildren<RectTransform>();
+                var BottomLeftCorner = allChildrenRecursive.Where(obj => obj.gameObject.name == "EdgePart (1)")
+                    .FirstOrDefault().gameObject;
+                var modNameObj =
+                    Instantiate(new GameObject("ExtraCardText", typeof(TextMeshProUGUI), typeof(DestroyOnUnParent)),
+                        BottomLeftCorner.transform.position, BottomLeftCorner.transform.rotation,
+                        BottomLeftCorner.transform);
+                var modText = modNameObj.gameObject.GetComponent<TextMeshProUGUI>();
+
+                modText.text = className;
+                modText.enableWordWrapping = false;
+                modText.alignment = TextAlignmentOptions.Bottom;
+                modText.alpha = 0.1f;
+                modText.fontSize = 50;
+
+                modNameObj.transform.Rotate(0f, 0f, 135f);
+                modNameObj.transform.localScale = new Vector3(1f, 1f, 1f);
+                modNameObj.transform.localPosition = new Vector3(-50f, -50f, 0f);
+            }
+            catch(Exception e) { UnityEngine.Debug.LogException(e); }
+        }
+
+        private void Update()
+        {
+            try
+            {
+                if (ClassesRegistry.Get(card.sourceCard) != null && (ClassesRegistry.Get(card.sourceCard).type & CardType.NonClassCard) == 0)
+                {
+                    if ((ClassesRegistry.Get(card.sourceCard).type & CardType.Entry) != 0)
+                        cardBackColor = ClassDefult;
+                    if ((ClassesRegistry.Get(card.sourceCard).type & CardType.SubClass) != 0)
+                        cardBackColor = SubClassDefult;
+                }
+                if (cardBackColor != Color.black)
+                {
+                    transform.Find("CardBase(Clone)/Canvas/Back/Back (1)").GetComponent<ProceduralImage>().color = cardBackColor;
+                    transform.Find("CardBase(Clone)/Canvas/Back/SmallBallTop").GetComponent<ProceduralImage>().color = cardBackColor;
+                    transform.Find("CardBase(Clone)/Canvas/Back/SmallBallBot").GetComponent<ProceduralImage>().color = cardBackColor;
+                    //FindObjectsInChildren(transform.Find("CardBase(Clone)/Canvas/Back").gameObject, "SmallBall").ForEach(o => o.GetComponent<ProceduralImage>().color = cardBackColor);
+                    List<GameObject> balls = FindObjectsInChildren(transform.Find("CardBase(Clone)/Canvas/Back").gameObject, "SmallBall");
+                    for (int i = 0; i < balls.Count; i++)
+                    {
+                        if (i % 2 != 0) balls[i].GetComponent<ProceduralImage>().color = cardBackColor;
+                    }
+                }
+                List<GameObject> triangles = FindObjectsInChildren(gameObject, "Triangle");
+                bool up = true;
+                int counter = 1;
+                for (int i = 0; i < triangles.Count; i++)
+                {
+                    if (++counter > 2) { up = !up; counter = 1; }
+                    if (up && color1 != Color.black)
+                    {
+                        triangles[i].GetComponent<Image>().color = color1;
+                    }
+                    if (!up && color2 != Color.black)
+                    {
+                        triangles[i].GetComponent<Image>().color = color2;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        public static List<GameObject> FindObjectsInChildren(GameObject gameObject, string gameObjectName)
+        {
+            List<GameObject> returnObjects = new List<GameObject>();
+            Transform[] children = gameObject.GetComponentsInChildren<Transform>(true);
+            foreach (Transform item in children)
+            {
+                if (item.gameObject.name.Equals(gameObjectName))
+                {
+                    returnObjects.Add(item.gameObject);
+                }
+            }
+
+            return returnObjects;
+        }
+    }
+}

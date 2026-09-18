@@ -1,0 +1,219 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &1404911454117608
+GameObject:
+  serializedVersion: 6
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Component:
+  - component: {fileID: 4859274202402716}
+  - component: {fileID: 114410093359920743}
+  - component: {fileID: 114407593710257939}
+  - component: {fileID: 114360185801688086}
+  - component: {fileID: 114501965209922808}
+  m_Layer: 0
+  m_Name: DrillAmmo
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4859274202402716
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1404911454117608}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -4, y: 4.57, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 0
+  m_LocalEulerAnglesHint: {x: 0, y: -0, z: -0}
+--- !u!114 &114410093359920743
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1404911454117608}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4b032fe9cba4be49be5bb256561788b, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  soundDisableBlockBasic: 0
+  cardName: DRILL AMMO
+  cardDestription:
+  cardStats:
+  - positive: 1
+    amount: +7m
+    simepleAmount: 0
+    stat: Bullets drill through walls
+  - positive: 0
+    amount: +0.25s
+    simepleAmount: 0
+    stat: Reload time
+  rarity: 2
+  cardArt: {fileID: 1437349343965358, guid: d895be8d864976540a6d4bac86568da8, type: 2}
+  sprite: {fileID: 21300000, guid: 5b742d082ddefaa489468fac5e1e3bff, type: 2}
+  sourceCard: {fileID: 0}
+  cardColor: {r: 0.23529412, g: 0.21156283, b: 0.10588236, a: 1}
+  categories: []
+  allowMultiple: 0
+  blacklistedCategories: []
+  cardBase: {fileID: 1720757555582362, guid: ab7829e25091330408953c12456bfb86, type: 2}
+  colorTheme: 1
+--- !u!114 &114407593710257939
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1404911454117608}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d09e61d8798559c41879e0963ec23e72, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  shootToPick: 0
+--- !u!114 &114360185801688086
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1404911454117608}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f92295fe49b73614591f58e9ea25e35f, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  holdable: {fileID: 0}
+  sinceAttack: 10
+  soundGun:
+    howManyShotModifiers: 3
+    shotModifierLowerVolumeDbIf2: -3
+    shotModifierLowerVolumeDbIf3: -6
+    soundShotModifierBasic: {fileID: 0}
+    howManyImpactModifiers: 2
+    impactModifierLowerVolumeDbIf2: -3
+    impactModifierLowerVolumeDbIf3: -6
+    soundImpactModifierBasic: {fileID: 0}
+    soundImpactModifierDamageToExplosionMedium: {fileID: 0}
+    soundImpactModifierDamageToExplosionHuge: {fileID: 0}
+    soundImpactBounce: {fileID: 0}
+    soundImpactBullet: {fileID: 0}
+  soundShotModifier: {fileID: 0}
+  soundImpactModifier: {fileID: 0}
+  soundDisableRayHitBulletSound: 0
+  recoil: 0
+  bodyRecoil: 0
+  shake: 0
+  forceSpecificShake: 0
+  projectiles: []
+  shootPosition: {fileID: 0}
+  player: {fileID: 0}
+  isReloading: 0
+  damage: 1
+  reloadTime: 1
+  reloadTimeAdd: 0.25
+  recoilMuiltiplier: 1
+  knockback: 1
+  attackSpeed: 1
+  projectileSpeed: 1
+  projectielSimulatonSpeed: 1
+  gravity: 1
+  damageAfterDistanceMultiplier: 1
+  bulletDamageMultiplier: 1
+  multiplySpread: 1
+  shakeM: 1
+  ammo: 0
+  ammoReg: 0
+  size: 0
+  overheatMultiplier: 0
+  timeToReachFullMovementMultiplier: 0
+  numberOfProjectiles: 0
+  bursts: 0
+  reflects: 0
+  smartBounce: 0
+  bulletPortal: 0
+  randomBounces: 0
+  timeBetweenBullets: 0
+  projectileSize: 0
+  speedMOnBounce: 1
+  dmgMOnBounce: 1
+  drag: 0
+  dragMinSpeed: 1
+  spread: 0
+  evenSpread: 0
+  percentageDamage: 0
+  cos: 0
+  slow: 0
+  chargeDamageMultiplier: 1
+  chargeSpreadTo: 0
+  chargeEvenSpreadTo: 0
+  chargeSpeedTo: 0
+  chargeRecoilTo: 0
+  chargeNumberOfProjectilesTo: 0
+  destroyBulletAfter: 0
+  forceSpecificAttackSpeed: 0
+  lockGunToDefault: 0
+  unblockable: 0
+  ignoreWalls: 0
+  currentCharge: 0
+  useCharge: 0
+  dontAllowAutoFire: 0
+  objectsToSpawn:
+  - effect: {fileID: 0}
+    direction: 0
+    spawnOn: 0
+    spawnAsChild: 0
+    numberOfSpawns: 1
+    normalOffset: 0
+    stickToBigTargets: 0
+    stickToAllTargets: 0
+    zeroZ: 0
+    AddToProjectile: {fileID: 1032929958507315, guid: 43da2288e00c4a94b9129c08f22a4029, type: 2}
+    removeScriptsFromProjectileObject: 0
+    scaleStacks: 0
+    scaleStackM: 0.7
+    scaleFromDamage: 0
+    stacks: 0
+  projectileColor: {r: 0, g: 0, b: 0, a: 1}
+  waveMovement: 0
+  teleport: 0
+  spawnSkelletonSquare: 0
+  explodeNearEnemyRange: 0
+  explodeNearEnemyDamage: 0
+  hitMovementMultiplier: 1
+  isProjectileGun: 0
+  defaultCooldown: 1
+  attackID: -1
+  attackSpeedMultiplier: 1
+--- !u!114 &114501965209922808
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1404911454117608}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -1283557461, guid: cc8a520cdc1a71048ac77742d0ea6366, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  Group: 0
+  prefixField: -1
+  observableSearch: 0
+  Synchronization: 0
+  OwnershipTransfer: 0
+  ObservedComponents:
+  - {fileID: 0}
+  viewIdField: 0
+  InstantiationId: 0
+  isRuntimeInstantiated: 0

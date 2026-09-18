@@ -1,0 +1,18 @@
+{
+    "name": "CardThemeLib",
+    "references": [
+        "UnboundLib"
+    ],
+    "optionalUnityReferences": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Assembly-CSharp.dll",
+        "0Harmony.dll",
+        "BepInEx.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": []
+}

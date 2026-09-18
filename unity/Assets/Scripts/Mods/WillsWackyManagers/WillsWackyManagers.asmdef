@@ -1,0 +1,29 @@
+{
+    "name": "WillsWackyManagers",
+    "references": [
+        "UnboundLib",
+        "CardThemeLib",
+        "CardChoiceSpawnUniqueCardPatch",
+        "RarityLib",
+        "ModdingUtils",
+        "ClassesManagerReborn",
+        "Unity.TextMeshPro"
+    ],
+    "optionalUnityReferences": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "0Harmony.dll",
+        "BepInEx.dll",
+        "Assembly-CSharp.dll",
+        "SonigonAudioEngine.Runtime.dll",
+        "Photon3Unity3D.dll",
+        "PhotonUnityNetworking.dll",
+        "InControl.dll",
+        "PhotonRealtime.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": []
+}

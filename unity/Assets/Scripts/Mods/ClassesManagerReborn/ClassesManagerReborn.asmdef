@@ -1,0 +1,24 @@
+{
+    "name": "ClassesManagerReborn",
+    "references": [
+        "UnboundLib",
+        "CardChoiceSpawnUniqueCardPatch",
+        "ModdingUtils",
+        "RarityLib",
+        "Unity.TextMeshPro"
+    ],
+    "optionalUnityReferences": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "0Harmony.dll",
+        "BepInEx.dll",
+        "Assembly-CSharp.dll",
+        "PhotonUnityNetworking.dll",
+        "Sirenix.OdinInspector.Attributes.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": []
+}

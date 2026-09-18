@@ -1,0 +1,273 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &1683863145274327
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4324363434284131}
+  - component: {fileID: 114590992481755485}
+  - component: {fileID: 114765168870384051}
+  - component: {fileID: 114009145047888588}
+  - component: {fileID: 114978416801250147}
+  - component: {fileID: 114402679314332380}
+  - component: {fileID: 114236876081666238}
+  m_Layer: 0
+  m_Name: Empower
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4324363434284131
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1683863145274327}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -4, y: 4.57, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 0
+  m_LocalEulerAnglesHint: {x: 0, y: -0, z: -0}
+--- !u!114 &114590992481755485
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1683863145274327}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4b032fe9cba4be49be5bb256561788b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  soundDisableBlockBasic: 1
+  cardName: EMPOWER
+  cardDestription: 'Blocking increases the damage and speed of your next shot.
+
+    The shot also triggers any on block abilities where it lands.'
+  cardStats:
+  - positive: 0
+    amount: +0.25s
+    simepleAmount: 0
+    stat: Block cooldown
+  rarity: 1
+  cardArt: {fileID: 1046517315000769, guid: a0ced32817ffe7d459e5ed4120a20392, type: 3}
+  sprite: {fileID: 21300000, guid: 10494f6614d095945b652709e355d914, type: 2}
+  sourceCard: {fileID: 0}
+  cardColor: {r: 0.2264151, g: 0.20517385, b: 0.03524386, a: 1}
+  categories: []
+  allowMultiple: 0
+  blacklistedCategories: []
+  cardBase: {fileID: 1720757555582362, guid: ab7829e25091330408953c12456bfb86, type: 3}
+  colorTheme: 3
+--- !u!114 &114765168870384051
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1683863145274327}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f92295fe49b73614591f58e9ea25e35f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  holdable: {fileID: 0}
+  sinceAttack: 10
+  soundGun:
+    howManyShotModifiers: 3
+    shotModifierLowerVolumeDbIf2: -3
+    shotModifierLowerVolumeDbIf3: -6
+    soundShotModifierBasic: {fileID: 0}
+    howManyImpactModifiers: 2
+    impactModifierLowerVolumeDbIf2: -3
+    impactModifierLowerVolumeDbIf3: -6
+    soundImpactModifierBasic: {fileID: 0}
+    soundImpactModifierDamageToExplosionMedium: {fileID: 0}
+    soundImpactModifierDamageToExplosionHuge: {fileID: 0}
+    soundImpactBounce: {fileID: 0}
+    soundImpactBullet: {fileID: 0}
+  soundShotModifier: {fileID: 0}
+  soundImpactModifier: {fileID: 0}
+  soundDisableRayHitBulletSound: 0
+  recoil: 0
+  bodyRecoil: 0
+  shake: 0
+  forceSpecificShake: 0
+  projectiles: []
+  shootPosition: {fileID: 0}
+  player: {fileID: 0}
+  isReloading: 0
+  damage: 1
+  reloadTime: 1
+  reloadTimeAdd: 0
+  recoilMuiltiplier: 1
+  knockback: 1
+  attackSpeed: 1
+  projectileSpeed: 1
+  projectielSimulatonSpeed: 1
+  gravity: 1
+  damageAfterDistanceMultiplier: 1
+  bulletDamageMultiplier: 1
+  multiplySpread: 1
+  shakeM: 1
+  ammo: 0
+  ammoReg: 0
+  size: 0
+  overheatMultiplier: 0
+  timeToReachFullMovementMultiplier: 0
+  numberOfProjectiles: 0
+  bursts: 0
+  reflects: 0
+  smartBounce: 0
+  bulletPortal: 0
+  randomBounces: 0
+  timeBetweenBullets: 0
+  projectileSize: 0
+  speedMOnBounce: 1
+  dmgMOnBounce: 1
+  drag: 0
+  dragMinSpeed: 1
+  spread: 0
+  evenSpread: 0
+  percentageDamage: 0
+  cos: 0
+  slow: 0
+  chargeDamageMultiplier: 1
+  chargeSpreadTo: 0
+  chargeEvenSpreadTo: 0
+  chargeSpeedTo: 0
+  chargeRecoilTo: 0
+  chargeNumberOfProjectilesTo: 0
+  destroyBulletAfter: 0
+  forceSpecificAttackSpeed: 0
+  lockGunToDefault: 0
+  unblockable: 0
+  ignoreWalls: 0
+  currentCharge: 0
+  useCharge: 0
+  dontAllowAutoFire: 0
+  objectsToSpawn: []
+  projectileColor: {r: 0, g: 0, b: 0, a: 1}
+  waveMovement: 0
+  teleport: 0
+  spawnSkelletonSquare: 0
+  explodeNearEnemyRange: 0
+  explodeNearEnemyDamage: 0
+  hitMovementMultiplier: 1
+  isProjectileGun: 0
+  defaultCooldown: 1
+  attackID: 0
+  attackSpeedMultiplier: 1
+--- !u!114 &114009145047888588
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1683863145274327}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d09e61d8798559c41879e0963ec23e72, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  shootToPick: 0
+--- !u!114 &114978416801250147
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1683863145274327}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0a7455d82e3521142be110549e6130ef, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  soundCharacterSlowFreeze: {fileID: 0}
+  AddObjectToPlayer: {fileID: 1940946097781373, guid: 41f51be4dcece924fb256cbfaab0a214,
+    type: 3}
+  objectsAddedToPlayer: []
+  sizeMultiplier: 1
+  health: 1
+  movementSpeed: 1
+  jump: 1
+  gravity: 1
+  slow: 0
+  slowSlow: 0
+  fastSlow: 0
+  secondsToTakeDamageOver: 0
+  numberOfJumps: 0
+  regen: 0
+  lifeSteal: 0
+  refreshOnDamage: 0
+  automaticReload: 1
+  respawns: 0
+  remainingRespawns: 0
+  tasteOfBloodSpeed: 1
+  rageSpeed: 1
+  attackSpeedMultiplier: 1
+  slowPart: {fileID: 0}
+--- !u!114 &114402679314332380
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1683863145274327}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -1283557461, guid: cc8a520cdc1a71048ac77742d0ea6366, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  Group: 0
+  prefixField: -1
+  observableSearch: 2
+  Synchronization: 3
+  OwnershipTransfer: 0
+  ObservedComponents: []
+  viewIdField: 0
+  InstantiationId: 0
+  isRuntimeInstantiated: 0
+--- !u!114 &114236876081666238
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1683863145274327}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ead7330fb99780241a0321f47a2eab68, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  soundBlockStart: {fileID: 0}
+  soundBlockRecharged: {fileID: 0}
+  soundBlockBlocked: {fileID: 0}
+  soundBlockStatusEffect: {fileID: 0}
+  objectsToSpawn: []
+  sinceBlock: 0
+  particle: {fileID: 0}
+  reloadParticle: {fileID: 0}
+  blockedPart: {fileID: 0}
+  cooldown: 0
+  counter: 1000
+  cdMultiplier: 1
+  cdAdd: 0.25
+  forceToAdd: 0
+  forceToAddUp: 0
+  autoBlock: 0
+  blockedThisFrame: 0
+  additionalBlocks: 0
+  healing: 0
+  blockedAtPos: {x: 0, y: 0, z: 0}
+  delayOtherActions: 0
+  statusBlockPart: {fileID: 0}

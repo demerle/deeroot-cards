@@ -1,0 +1,137 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &1754329780419673
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4161745081845476}
+  - component: {fileID: 114679709229964784}
+  - component: {fileID: 114518913300279738}
+  - component: {fileID: 114072180766036008}
+  - component: {fileID: 114242485703325389}
+  m_Layer: 0
+  m_Name: TasteOfBlood
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4161745081845476
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1754329780419673}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -4, y: 4.57, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 0
+  m_LocalEulerAnglesHint: {x: 0, y: -0, z: -0}
+--- !u!114 &114679709229964784
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1754329780419673}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4b032fe9cba4be49be5bb256561788b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  soundDisableBlockBasic: 0
+  cardName: TASTE OF BLOOD
+  cardDestription: +50% movement speed 3s after dealing DMG
+  cardStats:
+  - positive: 1
+    amount: +30%
+    simepleAmount: 1
+    stat: Life steal
+  rarity: 1
+  cardArt: {fileID: 1448295108445012, guid: 51cd05a6b14e75e4b92efb3decd2f918, type: 3}
+  sprite: {fileID: 21300000, guid: 5b742d082ddefaa489468fac5e1e3bff, type: 2}
+  sourceCard: {fileID: 0}
+  cardColor: {r: 0.10568709, g: 0.18812303, b: 0.23584908, a: 1}
+  categories: []
+  allowMultiple: 0
+  blacklistedCategories: []
+  cardBase: {fileID: 1720757555582362, guid: ab7829e25091330408953c12456bfb86, type: 3}
+  colorTheme: 0
+--- !u!114 &114518913300279738
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1754329780419673}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d09e61d8798559c41879e0963ec23e72, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  shootToPick: 0
+--- !u!114 &114072180766036008
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1754329780419673}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -1283557461, guid: cc8a520cdc1a71048ac77742d0ea6366, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  Group: 0
+  prefixField: -1
+  observableSearch: 0
+  Synchronization: 0
+  OwnershipTransfer: 0
+  ObservedComponents:
+  - {fileID: 0}
+  viewIdField: 0
+  InstantiationId: 0
+  isRuntimeInstantiated: 0
+--- !u!114 &114242485703325389
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1754329780419673}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0a7455d82e3521142be110549e6130ef, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  soundCharacterSlowFreeze: {fileID: 0}
+  AddObjectToPlayer: {fileID: 1794553754470750, guid: c0c74864d8edf144aaf773474d4d1784,
+    type: 3}
+  objectsAddedToPlayer: []
+  sizeMultiplier: 1
+  health: 1
+  movementSpeed: 1
+  jump: 1
+  gravity: 1
+  slow: 0
+  slowSlow: 0
+  fastSlow: 0
+  secondsToTakeDamageOver: 0
+  numberOfJumps: 0
+  regen: 0
+  lifeSteal: 0.3
+  refreshOnDamage: 0
+  automaticReload: 1
+  respawns: 0
+  remainingRespawns: 0
+  tasteOfBloodSpeed: 1
+  rageSpeed: 1
+  attackSpeedMultiplier: 1
+  slowPart: {fileID: 0}

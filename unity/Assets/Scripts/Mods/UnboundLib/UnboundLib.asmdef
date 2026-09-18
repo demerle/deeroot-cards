@@ -1,0 +1,26 @@
+{
+    "name": "UnboundLib",
+    "references": [
+        "Unity.TextMeshPro",
+        "Unity.TextMeshPro.Editor",
+        "Unity.TextMeshPro.Editor.Tests",
+        "Unity.TextMeshPro.Tests",
+        "ILGenerator"
+    ],
+    "optionalUnityReferences": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "0Harmony.dll",
+        "BepInEx.dll",
+        "Assembly-CSharp.dll",
+        "PhotonRealtime.dll",
+        "Photon3Unity3D.dll",
+        "PhotonUnityNetworking.dll",
+        "MMHOOK_Assembly-CSharp.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": []
+}

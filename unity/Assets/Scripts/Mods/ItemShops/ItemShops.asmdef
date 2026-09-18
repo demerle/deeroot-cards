@@ -1,0 +1,25 @@
+{
+    "name": "ItemShops",
+    "references": [
+        "UnboundLib",
+        "Unity.TextMeshPro",
+        "ModdingUtils"
+    ],
+    "optionalUnityReferences": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "0Harmony.dll",
+        "BepInEx.dll",
+        "Assembly-CSharp.dll",
+        "InControl.dll",
+        "SonigonAudioEngine.Runtime.dll",
+        "PhotonUnityNetworking.dll",
+        "PhotonRealtime.dll",
+        "Photon3Unity3D.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": []
+}

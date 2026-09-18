@@ -1,0 +1,21 @@
+{
+    "name": "DeerootCards",
+    "references": [
+        "UnboundLib",
+        "ModdingUtils"
+    ],
+    "optionalUnityReferences": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Assembly-CSharp.dll",
+        "0Harmony.dll",
+        "BepInEx.dll",
+        "PhotonUnityNetworking.dll",
+        "PhotonRealtime.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": []
+}

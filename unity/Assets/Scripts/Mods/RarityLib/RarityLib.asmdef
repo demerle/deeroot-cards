@@ -1,0 +1,20 @@
+{
+    "name": "RarityLib",
+    "references": [
+        "UnboundLib",
+        "ModdingUtils",
+        "CardChoiceSpawnUniqueCardPatch"
+    ],
+    "optionalUnityReferences": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "0Harmony.dll",
+        "Assembly-CSharp.dll",
+        "BepInEx.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": []
+}

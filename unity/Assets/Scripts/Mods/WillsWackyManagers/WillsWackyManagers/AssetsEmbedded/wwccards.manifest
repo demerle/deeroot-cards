@@ -1,0 +1,91 @@
+ManifestFileVersion: 0
+CRC: 2887267141
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: d28d79dfb9b6c41df2ef6c9fc26c10a5
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: ffc6cf007cf6b6ba14740d89318f504e
+HashAppended: 0
+ClassTypes:
+- Class: 1
+  Script: {instanceID: 0}
+- Class: 4
+  Script: {instanceID: 0}
+- Class: 21
+  Script: {instanceID: 0}
+- Class: 28
+  Script: {instanceID: 0}
+- Class: 48
+  Script: {instanceID: 0}
+- Class: 74
+  Script: {instanceID: 0}
+- Class: 91
+  Script: {instanceID: 0}
+- Class: 95
+  Script: {instanceID: 0}
+- Class: 96
+  Script: {instanceID: 0}
+- Class: 114
+  Script: {fileID: 1980459831, guid: f70555f144d8491a825f0804e09c671c, type: 3}
+- Class: 114
+  Script: {fileID: 1301386320, guid: f70555f144d8491a825f0804e09c671c, type: 3}
+- Class: 114
+  Script: {fileID: -765806418, guid: f70555f144d8491a825f0804e09c671c, type: 3}
+- Class: 114
+  Script: {fileID: -1200242548, guid: f70555f144d8491a825f0804e09c671c, type: 3}
+- Class: 114
+  Script: {fileID: -900027084, guid: f70555f144d8491a825f0804e09c671c, type: 3}
+- Class: 114
+  Script: {fileID: 11500000, guid: e15e6569966def44ca024f4589e0a572, type: 3}
+- Class: 114
+  Script: {fileID: 11500000, guid: 71c1514a6bd24e1e882cebbe1904ce04, type: 3}
+- Class: 114
+  Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
+- Class: 114
+  Script: {fileID: 11500000, guid: a7b962b8e3044ce4091b20910301a94a, type: 3}
+- Class: 114
+  Script: {fileID: 11500000, guid: 4b84cd43a3310a646bfc34e8a19d4384, type: 3}
+- Class: 115
+  Script: {instanceID: 0}
+- Class: 128
+  Script: {instanceID: 0}
+- Class: 198
+  Script: {instanceID: 0}
+- Class: 199
+  Script: {instanceID: 0}
+- Class: 213
+  Script: {instanceID: 0}
+- Class: 222
+  Script: {instanceID: 0}
+- Class: 223
+  Script: {instanceID: 0}
+- Class: 224
+  Script: {instanceID: 0}
+Assets:
+- Assets/Prefabs/Cards/C_IntegratedTargeting.prefab
+- Assets/Prefabs/Cards/C_EnduranceTraining.prefab
+- Assets/Prefabs/Cards/C_BasicAltPhysics.prefab
+- Assets/Prefabs/Cards/C_Gatling.prefab
+- Assets/Prefabs/Images/CircleHollow2.png
+- Assets/Prefabs/Cards/C_AmmoCache.prefab
+- Assets/Prefabs/LevelFrame.prefab
+- Assets/Prefabs/C_MechanicCardPlaceHolder.prefab
+- Assets/Prefabs/Cards/C_Hex.prefab
+- Assets/Material/Bullet.mat
+- Assets/Prefabs/Cards/C_TableFlip.prefab
+- Assets/Material/WhiteSmooth.mat
+- Assets/Prefabs/Cards/C_EasyTarget.prefab
+- Assets/Prefabs/Cards/C_ForbiddenMagics.prefab
+- Assets/Prefabs/LevelDisplay.prefab
+- Assets/Prefabs/Cards/C_AdrenalineRush.prefab
+- Assets/Prefabs/Cards/C_Mechanic.prefab
+- Assets/Prefabs/A_ShadowBullet.prefab
+- Assets/Prefabs/Cards/C_Boomerang.prefab
+- Assets/Prefabs/Cards/C_ImprovedShieldCapacitors.prefab
+- Assets/Prefabs/Cards/C_BasicPhysics.prefab
+- Assets/Material/WhiteUnlit.mat
+- Assets/Prefabs/Cards/C_HiltlessBlade.prefab
+- Assets/Prefabs/Cards/C_PortableFabricator.prefab
+Dependencies: []

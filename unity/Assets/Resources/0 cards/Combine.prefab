@@ -1,0 +1,270 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &1637474842900127
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4084475019916135}
+  m_Layer: 0
+  m_Name: Cool ringeffekt runt bullet
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4084475019916135
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1637474842900127}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children: []
+  m_Father: {fileID: 4837608799521089}
+  m_RootOrder: 0
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1674426099453873
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4837608799521089}
+  - component: {fileID: 114663200843730441}
+  - component: {fileID: 114571147665089387}
+  - component: {fileID: 114574170418914313}
+  - component: {fileID: 114664707973434130}
+  m_Layer: 0
+  m_Name: Combine
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4837608799521089
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1674426099453873}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -4, y: 4.57, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children:
+  - {fileID: 4084475019916135}
+  - {fileID: 4837067849209659}
+  m_Father: {fileID: 0}
+  m_RootOrder: 0
+  m_LocalEulerAnglesHint: {x: 0, y: -0, z: -0}
+--- !u!114 &114663200843730441
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1674426099453873}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4b032fe9cba4be49be5bb256561788b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  soundDisableBlockBasic: 0
+  cardName: COMBINE
+  cardDestription: 
+  cardStats:
+  - positive: 1
+    amount: +100%
+    simepleAmount: 3
+    stat: DMG
+  - positive: 0
+    amount: -2
+    simepleAmount: 0
+    stat: AMMO
+  - positive: 0
+    amount: +0.5s
+    simepleAmount: 0
+    stat: Reload time
+  rarity: 0
+  cardArt: {fileID: 1997053416660869, guid: 939eed80078b62443a6209273af37501, type: 3}
+  sprite: {fileID: 0}
+  sourceCard: {fileID: 0}
+  cardColor: {r: 0.2264151, g: 0.20517385, b: 0.03524386, a: 1}
+  categories: []
+  allowMultiple: 1
+  blacklistedCategories: []
+  cardBase: {fileID: 1720757555582362, guid: ab7829e25091330408953c12456bfb86, type: 3}
+  colorTheme: 1
+--- !u!114 &114571147665089387
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1674426099453873}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f92295fe49b73614591f58e9ea25e35f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  holdable: {fileID: 0}
+  sinceAttack: 10
+  soundGun:
+    howManyShotModifiers: 3
+    shotModifierLowerVolumeDbIf2: -3
+    shotModifierLowerVolumeDbIf3: -6
+    soundShotModifierBasic: {fileID: 0}
+    howManyImpactModifiers: 2
+    impactModifierLowerVolumeDbIf2: -3
+    impactModifierLowerVolumeDbIf3: -6
+    soundImpactModifierBasic: {fileID: 0}
+    soundImpactModifierDamageToExplosionMedium: {fileID: 0}
+    soundImpactModifierDamageToExplosionHuge: {fileID: 0}
+    soundImpactBounce: {fileID: 0}
+    soundImpactBullet: {fileID: 0}
+  soundShotModifier: {fileID: 0}
+  soundImpactModifier: {fileID: 0}
+  soundDisableRayHitBulletSound: 0
+  recoil: 0
+  bodyRecoil: 0
+  shake: 0
+  forceSpecificShake: 0
+  projectiles: []
+  shootPosition: {fileID: 0}
+  player: {fileID: 0}
+  isReloading: 0
+  damage: 2
+  reloadTime: 1
+  reloadTimeAdd: 0.5
+  recoilMuiltiplier: 1
+  knockback: 1
+  attackSpeed: 1
+  projectileSpeed: 1
+  projectielSimulatonSpeed: 1
+  gravity: 1
+  damageAfterDistanceMultiplier: 1
+  bulletDamageMultiplier: 1
+  multiplySpread: 1
+  shakeM: 1
+  ammo: -2
+  ammoReg: 0
+  size: 0
+  overheatMultiplier: 0
+  timeToReachFullMovementMultiplier: 0
+  numberOfProjectiles: 0
+  bursts: 0
+  reflects: 0
+  smartBounce: 0
+  bulletPortal: 0
+  randomBounces: 0
+  timeBetweenBullets: 0
+  projectileSize: 0
+  speedMOnBounce: 1
+  dmgMOnBounce: 1
+  drag: 0
+  dragMinSpeed: 1
+  spread: 0
+  evenSpread: 0
+  percentageDamage: 0
+  cos: 0
+  slow: 0
+  chargeDamageMultiplier: 1
+  chargeSpreadTo: 0
+  chargeEvenSpreadTo: 0
+  chargeSpeedTo: 0
+  chargeRecoilTo: 0
+  chargeNumberOfProjectilesTo: 0
+  destroyBulletAfter: 0
+  forceSpecificAttackSpeed: 0
+  lockGunToDefault: 0
+  unblockable: 0
+  ignoreWalls: 0
+  currentCharge: 0
+  useCharge: 0
+  dontAllowAutoFire: 0
+  objectsToSpawn: []
+  projectileColor: {r: 0, g: 0, b: 0, a: 1}
+  waveMovement: 0
+  teleport: 0
+  spawnSkelletonSquare: 0
+  explodeNearEnemyRange: 0
+  explodeNearEnemyDamage: 0
+  hitMovementMultiplier: 1
+  isProjectileGun: 0
+  defaultCooldown: 1
+  attackID: -1
+  attackSpeedMultiplier: 1
+--- !u!114 &114574170418914313
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1674426099453873}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d09e61d8798559c41879e0963ec23e72, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  shootToPick: 0
+--- !u!114 &114664707973434130
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1674426099453873}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -1283557461, guid: cc8a520cdc1a71048ac77742d0ea6366, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  Group: 0
+  prefixField: -1
+  observableSearch: 0
+  Synchronization: 0
+  OwnershipTransfer: 0
+  ObservedComponents:
+  - {fileID: 0}
+  viewIdField: 0
+  InstantiationId: 0
+  isRuntimeInstantiated: 0
+--- !u!1 &1983432342984954
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4837067849209659}
+  m_Layer: 0
+  m_Name: "Actually se till att bulleten tr\xE4ffar f\xF6r att f\xE5 alla effe"
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4837067849209659
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1983432342984954}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children: []
+  m_Father: {fileID: 4837608799521089}
+  m_RootOrder: 1
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
