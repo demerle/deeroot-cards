@@ -1,0 +1,105 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Assembly-CSharp</AssemblyName>
+    <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+  <PropertyGroup>
+    <LangVersion>12.0</LangVersion>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup />
+  <ItemGroup />
+  <ItemGroup>
+    <Reference Include="UnityEngine.Physics2DModule">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/UnityEngine.Physics2DModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+    <Reference Include="PhotonUnityNetworking">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/PhotonUnityNetworking.dll</HintPath>
+    </Reference>
+    <Reference Include="Sirenix.OdinInspector.Attributes">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/Sirenix.OdinInspector.Attributes.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.Postprocessing.Runtime">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/Unity.Postprocessing.Runtime.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.ParticleSystemModule">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/UnityEngine.ParticleSystemModule.dll</HintPath>
+    </Reference>
+    <Reference Include="SonigonAudioEngine.Runtime">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/SonigonAudioEngine.Runtime.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/Unity.TextMeshPro.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/UnityEngine.UI.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/UnityEngine.UIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.SpriteMaskModule">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/UnityEngine.SpriteMaskModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/UnityEngine.AudioModule.dll</HintPath>
+    </Reference>
+    <Reference Include="Photon3Unity3D">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/Photon3Unity3D.dll</HintPath>
+    </Reference>
+    <Reference Include="InControl">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/InControl.dll</HintPath>
+    </Reference>
+    <Reference Include="Assembly-CSharp-firstpass">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/Assembly-CSharp-firstpass.dll</HintPath>
+    </Reference>
+    <Reference Include="Sirenix.Serialization">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/Sirenix.Serialization.dll</HintPath>
+    </Reference>
+    <Reference Include="PhotonRealtime">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/PhotonRealtime.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/UnityEngine.PhysicsModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/UnityEngine.AnimationModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/UnityEngine.TextRenderingModule.dll</HintPath>
+    </Reference>
+    <Reference Include="FloatCrusher">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/FloatCrusher.dll</HintPath>
+    </Reference>
+    <Reference Include="QuatCompress">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/QuatCompress.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.VRModule">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/UnityEngine.VRModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityAnalyticsModule">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/UnityEngine.UnityAnalyticsModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/UnityEngine.IMGUIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.JSONSerializeModule">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/UnityEngine.JSONSerializeModule.dll</HintPath>
+    </Reference>
+    <Reference Include="HalfFloatASMDEF">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/HalfFloatASMDEF.dll</HintPath>
+    </Reference>
+    <Reference Include="EmoCompressUtilsASMDEF">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/EmoCompressUtilsASMDEF.dll</HintPath>
+    </Reference>
+    <Reference Include="BitpackersASMDEF">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/BitpackersASMDEF.dll</HintPath>
+    </Reference>
+    <Reference Include="HalFloat">
+      <HintPath>../../../../../../mnt/f/SteamLibrary/steamapps/common/ROUNDS/Rounds_Data/Managed/HalFloat.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>

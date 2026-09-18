@@ -18,6 +18,7 @@ namespace DeerootCards
         {
             UnityEngine.Debug.Log("[DEER] DeerootCards mod loading, building cards...");
             CustomCard.BuildCard<OverdriveCard>();
+            CustomCard.BuildCard<BlinkCard>();
         }
 
         void Start()
