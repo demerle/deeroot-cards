@@ -10,7 +10,7 @@ It is also highly recommended that you use [GitHub](https://github.com/) or some
 
 ## Setup:
 
-Create a new 3D project in Unity and import [this package](https://drive.google.com/file/d/16XGnC1g0arkZVV7RB5duGw5Qwrxb5muw/view?usp=sharing) into it. The base project contains most common dependencies for ROUNDS mods as well as the base assets that the vanilla cards work, and a template card. *(Take some time to familiarize yourself with the setup of the mod files in Scripts/Mods, their assembly definition files will provide a good reference for any you will have to make.)*
+Create a new 3D project in Unity and import the base package (`BaseRoundsModPackage.unitypackage`, located alongside this documentation in `~/projects/deeroot-cards/`) into it. The base project contains most common dependencies for ROUNDS mods as well as the base assets that the vanilla cards work, and a template card. *(Take some time to familiarize yourself with the setup of the mod files in Scripts/Mods, their assembly definition files will provide a good reference for any you will have to make.)*
 
 Next make a folder inside of the \`Assets\` folder to hold your mod, you can name it anything you want, but I like to prefix the name with an underscore *(\_)* doing so makes it easier to find as it sorts it to the top of the list.
 
@@ -24,8 +24,22 @@ These are the base references that most mods need, if you need to reference addi
 Rounds mods use [BepInEx](https://docs.bepinex.dev/) to mod the game. The first step of making a mod is setting up a plugin file. This will be your mod’s entry point into the game.   
 Start by making a C\# Script inside the folder that contains your mod’s assembly definition. This is going to be a class file that extends \`BaseUnityPlugin\`. You also need to add the following attributes such that it looks something like this:
 
-| \[BepInDependency("com.willis.rounds.unbound")\]\[BepInDependency("pykess.rounds.plugins.moddingutils")\]\[BepInDependency("pykess.rounds.plugins.cardchoicespawnuniquecardpatch")\]\[BepInPlugin(ModId, ModName, Version)\]\[BepInProcess("Rounds.exe")\]public class MyMod: BaseUnityPlugin{	internal static string modInitials \= "";	void Awake(){			}	void Start(){			}} |
-| :---- |
+```csharp
+[BepInDependency("com.willis.rounds.unbound")]
+[BepInDependency("pykess.rounds.plugins.moddingutils")]
+[BepInDependency("pykess.rounds.plugins.cardchoicespawnuniquecardpatch")]
+[BepInPlugin(ModId, ModName, Version)]
+[BepInProcess("Rounds.exe")]
+public class MyMod: BaseUnityPlugin{
+	internal static string modInitials = "";
+	void Awake(){
+
+	}
+	void Start(){
+
+	}
+}
+```
 
 Change \`MyMod\` to be the name of your mod, and replace \`ModId\`, \`ModName\`, and \`Version\` with [appropriate values](https://docs.bepinex.dev/articles/dev_guide/plugin_tutorial/2_plugin_start.html#basic-information-about-the-plugin) *(Version should be a number in the form of \`MajorVersion.MinorVersion.PatchNumber\`)*    
 Set modInitials to be the tab you wish for your cards to be regenerated under.
@@ -73,13 +87,17 @@ The first script is \`CreateAssetBundles\` This script adds a button for easy bu
 
 The second script is \`CsprojPostprocessor\` This script sets up the Csproj file to embed your asset bundle into your mod so it can be used in game. In order to do this you must edit line 9 of the file replacing MODNAME with the name of your mod’s assembly definition, and ASSETBUNDLE with the name of your asset bundle.
 
-| private static Dictionary\<string, string\> ModBundleMap \= new Dictionary\<string, string\>(){   {"MODNAME","ASSETBUNDLE"} *///EDIT WITH NAME OF MOD ASSEMBLY AND NAME OF ASSET BUNDLE (CASE MATTERS)*}; |
-| :---- |
+```csharp
+private static Dictionary<string, string> ModBundleMap = new Dictionary<string, string>(){
+   {"MODNAME","ASSETBUNDLE"} //EDIT WITH NAME OF MOD ASSEMBLY AND NAME OF ASSET BUNDLE (CASE MATTERS)
+};
+```
 
 Now go back into your main plugin file and add an internal static AssetBundle field named “assets” then in the Awake method add:
 
-| assets \= Jotunn.Utils.AssetUtils.LoadAssetBundleFromResources("ASSETBUNDLE", typeof(MyMod).Assembly); |
-| :---- |
+```csharp
+assets = Jotunn.Utils.AssetUtils.LoadAssetBundleFromResources("ASSETBUNDLE", typeof(MyMod).Assembly);
+```
 
 replacing \`ASSETBUNDLE\` and \`MyMod\` as necessary. This loads in the asset bundled so you can pull assets out of it later in your mod.
 
@@ -92,8 +110,22 @@ Note: Asset Bundles must be rebuilt when changes are made to their contents in o
 
 Create a new class to hold and build the cards you are making and copy the following code into it:
 
-| public class CardHolder: MonoBehaviour{    public List\<GameObject\> Cards;    public List\<GameObject\> HiddenCards;    internal void RegisterCards(){        foreach(var Card in Cards){            CustomCard.RegisterUnityCard(Card, MyMod.modInitials, Card.GetComponent\<CardInfo\>().cardName, true, null);        }        foreach(var Card in HiddenCards){            CustomCard.RegisterUnityCard(Card, MyMod.modInitials, Card.GetComponent\<CardInfo\>().cardName, false, null);            ModdingUtils.Utils.Cards.instance.AddHiddenCard(Card.GetComponent\<CardInfo\>());        }    }} |
-| :---- |
+```csharp
+public class CardHolder: MonoBehaviour{
+    public List<GameObject> Cards;
+    public List<GameObject> HiddenCards;
+
+    internal void RegisterCards(){
+        foreach(var Card in Cards){
+            CustomCard.RegisterUnityCard(Card, MyMod.modInitials, Card.GetComponent<CardInfo>().cardName, true, null);
+        }
+        foreach(var Card in HiddenCards){
+            CustomCard.RegisterUnityCard(Card, MyMod.modInitials, Card.GetComponent<CardInfo>().cardName, false, null);
+            ModdingUtils.Utils.Cards.instance.AddHiddenCard(Card.GetComponent<CardInfo>());
+        }
+    }
+}
+```
 
 This class holds 2 lists of cards, Normal cards that you want to show up in a hand, and Hidden cards, which are cards that won’t appear in a player’s hand but can instead be added by other cards.  
 The RegisterCards function is a function that you will call in your mod’s main plugin file, it first registers all the normal cards and then registers the hidden cards and flags them as hidden so they can be later accessed.
@@ -111,8 +143,9 @@ You can now increase the size of the Cards array and add your card to it by drag
 
 You can now tell your mod to register your cards by adding the following line at the end of your Awake method:
 
-| assets.LoadAsset\<GameObject\>("ModCards").GetComponent\<CardHolder\>().RegisterCards(); |
-| :---- |
+```csharp
+assets.LoadAsset<GameObject>("ModCards").GetComponent<CardHolder>().RegisterCards();
+```
 
 This loads in your CardHolder from the asset bundle and tells it to register all the cards you’ve put in it.
 
@@ -130,23 +163,96 @@ You should now be able to click \`Start modded\` and have your mod loaded into t
 ## Debugging:
 
 Chances are at some point your mod won't behave as you expect it to. A lot of times when this happens there is an error message sent to the debug log. However, this log is not shown by default. To enable it, select the config editor in your modmanager and select \`Edit Config\` for the \`BepInEx\\Config\\BepInEx.cfg\`. *(You may have to run the game once to make it showup)*   
-Then set \`Loging.Console\`  \`Enabled\` to \`true\`. Now the next time you run the game a terminal style debug readout will open with it. Not only will this let you see any errors being thrown, it will also let you add debug lines to your code to aid in debugging. You can do so with the  UnityEngine.Debug.Log(object)  function. Just remember to remove/disable those lines before publishing your mod.  
-Another useful tool for debugging is the \`UnityExpolorer\` mod by sinai-dev. This mod lets you look as objects in the game as if they were in the unity editor.
+Then set \`Logging.Console\`  \`Enabled\` to \`true\`. Now the next time you run the game a terminal style debug readout will open with it. Not only will this let you see any errors being thrown, it will also let you add debug lines to your code to aid in debugging. You can do so with the  UnityEngine.Debug.Log(object)  function. Just remember to remove/disable those lines before publishing your mod.  
+Another useful tool for debugging is the \`UnityExplorer\` mod by sinai-dev. This mod lets you look as objects in the game as if they were in the unity editor.
 
 ## Porting a Non-Unity Mod Over to Unity:
 
 If you have a mod that you have already created and want to move it over into unity, after following the instructions for setting up your unity project you can copy your mod’s existing code into the code folder you created in unity. Once you do that, provided you have set all necessary references inside the assembly definition, your code should now be accessible inside of unity and all that is left to do is convert your cards over to prefabs.  
 First take the [CardHolder](#getting-your-card-into-the-game:) class and modify its RegisterCards function like so:
 
-| internal void RegisterCards(){    foreach(var Card in Cards){        if(Card.GetComponent\<CustomCard\>() is CustomCard customCard){            customCard.BuildUnityCard(null);        }else{            CustomCard.RegisterUnityCard(Card, MyMod.modInitials, Card.GetComponent\<CardInfo\>().cardName, true, null);        }    }    foreach(var Card in HiddenCards){        if(Card.GetComponent\<CustomCard\>() is CustomCard customCard){            customCard.BuildUnityCard(cardInfo \=\> ModdingUtils.Utils.Cards.instance.AddHiddenCard(cardInfo));        }else{            CustomCard.RegisterUnityCard(Card, MyMod.modInitials, Card.GetComponent\<CardInfo\>().cardName, false, null);            ModdingUtils.Utils.Cards.instance.AddHiddenCard(Card.GetComponent\<CardInfo\>());        }    }} |
-| :---- |
+```csharp
+internal void RegisterCards(){
+    foreach(var Card in Cards){
+        if(Card.GetComponent<CustomCard>() is CustomCard customCard){
+            customCard.BuildUnityCard(null);
+        }else{
+            CustomCard.RegisterUnityCard(Card, MyMod.modInitials, Card.GetComponent<CardInfo>().cardName, true, null);
+        }
+    }
+    foreach(var Card in HiddenCards){
+        if(Card.GetComponent<CustomCard>() is CustomCard customCard){
+            customCard.BuildUnityCard(cardInfo => ModdingUtils.Utils.Cards.instance.AddHiddenCard(cardInfo));
+        }else{
+            CustomCard.RegisterUnityCard(Card, MyMod.modInitials, Card.GetComponent<CardInfo>().cardName, false, null);
+            ModdingUtils.Utils.Cards.instance.AddHiddenCard(Card.GetComponent<CardInfo>());
+        }
+    }
+}
+```
 
 This will allow you to register cards simply by adding existing CustomCard Monos to prefabs and adding them to your CardHolder like you would do for normal cards, but without the need to set any data on the normal card components.
 
 A convenient way of importing your existing CustomCardMonos is by importing the following script into your unity package.
 
-| using System.IO; using System.Reflection;using UnboundLib.Cards;using UnityEditor;using UnityEngine;using Photon.Pun;public class CreateCustomCardPrefab{    \[MenuItem("Assets/Create/CustomCardPrefab")\]    private static void CreatePrefab()    {        foreach (var obj in Selection.objects)        {            if (obj is MonoScript monoScript)            {                if (monoScript.GetClass().IsSubclassOf(typeof(CustomCard)) && (\!(monoScript.GetClass().GetTypeInfo().IsAbstract)))                {                    GameObject cardObj \= new GameObject(monoScript.GetClass().Name, monoScript.GetClass(), typeof(CardInfo), typeof(PhotonView));                    var customCard \= cardObj.GetComponent\<CustomCard\>();                    customCard.gun \= cardObj.AddComponent\<Gun\>();                    customCard.gun.projectiles \= new ProjectilesToSpawn\[0\];                    customCard.block \= cardObj.AddComponent\<Block\>();                    customCard.statModifiers \= cardObj.AddComponent\<CharacterStatModifiers\>();                    var path \= AssetDatabase.GetAssetPath(obj);                    if (Path.GetExtension(path) \!= "")                    {                        path \= path.Replace(Path.GetFileName(AssetDatabase.GetAssetPath(obj)), "");                    }                    PrefabUtility.SaveAsPrefabAsset(cardObj, $"{path}/{cardObj.name}.prefab");                    GameObject.DestroyImmediate(cardObj);                }            }        }    }    \[MenuItem("Assets/Create/CustomCardPrefab", true)\]    private static bool CreatePrefabValidation()    {        bool flag \= false;        foreach (var obj in Selection.objects)        {            if (obj is MonoScript monoScript)            {                if (monoScript.GetClass().IsSubclassOf(typeof(CustomCard)) && (\!(monoScript.GetClass().GetTypeInfo().IsAbstract)))                {                    flag= true;                }            }        }        return flag;    }} |
-| :---- |
+```csharp
+using System.IO; using System.Reflection;
+using UnboundLib.Cards;
+using UnityEditor;
+using UnityEngine;
+using Photon.Pun;
+
+public class CreateCustomCardPrefab
+{
+    [MenuItem("Assets/Create/CustomCardPrefab")]
+    private static void CreatePrefab()
+    {
+        foreach (var obj in Selection.objects)
+        {
+            if (obj is MonoScript monoScript)
+            {
+                if (monoScript.GetClass().IsSubclassOf(typeof(CustomCard)) && (!(monoScript.GetClass().GetTypeInfo().IsAbstract)))
+                {
+                    GameObject cardObj = new GameObject(monoScript.GetClass().Name, monoScript.GetClass(), typeof(CardInfo), typeof(PhotonView));
+
+                    var customCard = cardObj.GetComponent<CustomCard>();
+                    customCard.gun = cardObj.AddComponent<Gun>();
+                    customCard.gun.projectiles = new ProjectilesToSpawn[0];
+                    customCard.block = cardObj.AddComponent<Block>();
+                    customCard.statModifiers = cardObj.AddComponent<CharacterStatModifiers>();
+
+                    var path = AssetDatabase.GetAssetPath(obj);
+                    if (Path.GetExtension(path) != "")
+                    {
+                        path = path.Replace(Path.GetFileName(AssetDatabase.GetAssetPath(obj)), "");
+                    }
+
+                    PrefabUtility.SaveAsPrefabAsset(cardObj, $"{path}/{cardObj.name}.prefab");
+                    GameObject.DestroyImmediate(cardObj);
+                }
+            }
+        }
+    }
+
+    [MenuItem("Assets/Create/CustomCardPrefab", true)]
+    private static bool CreatePrefabValidation()
+    {
+        bool flag = false;
+
+        foreach (var obj in Selection.objects)
+        {
+            if (obj is MonoScript monoScript)
+            {
+                if (monoScript.GetClass().IsSubclassOf(typeof(CustomCard)) && (!(monoScript.GetClass().GetTypeInfo().IsAbstract)))
+                {
+                    flag= true;
+                }
+            }
+        }
+        return flag;
+    }
+}
+```
 
 This will allow you to simply create a prefab by right-clicking on a monobehaviour script. **Note:** The CustomCard class must have the same name as the file name for this mono to work. 
 
@@ -238,10 +344,10 @@ Red fields are either not copied off the card, not used by the game, or both.
 | Charge Speed To | float | How much the bullet’s speed is multiplied by the current charge of the gun when it is fired. | This field will have no effect without [this](https://rounds.thunderstore.io/package/willuwontu/GunChargePatch/) patch. |
 | Charge Recoil To | float | If the gun is using charge, will multiply the Body Recoil stat by this times the guns current charge when shooting | This field will have no effect without [this](https://rounds.thunderstore.io/package/Root/GunBodyRecoilPatch/) patch and [this](https://rounds.thunderstore.io/package/willuwontu/GunChargePatch/) patch. |
 | Charge Number Of Projectiles To | float | How many additional projectiles the gun will fire at max charge. | This field will have no effect without [this](https://rounds.thunderstore.io/package/willuwontu/GunChargePatch/) patch. Default value is 0\. |
-| Destroy Bullet After | float | The amount of time a bullet lives for after it’s  |  |
+| Destroy Bullet After | float | How long the bullet remains alive after being fired. |  |
 | Force Specific Attack Speed | float | The forced attack speed of the gun. | Only works if Lock Gun To Default is set to true. |
 | Lock Gun To Default | bool | Forces the gun to shoot at a specific attack speed with no spread, and only fires 1 bullet at a time. |  |
-| Unblockable | bool | Flag that enables the bullets to deal damage through shields. | This field will have no effect without [this](https://rounds.thunderstore.io/package/Pykess/GunUnblockablePatch/h/) patch. |
+| Unblockable | bool | Flag that enables the bullets to deal damage through shields. | This field will have no effect without [this](https://rounds.thunderstore.io/package/Pykess/GunUnblockablePatch/) patch. |
 | Ignore Walls | bool | Flag that enables the bullets to go through walls. |  |
 | Use Charge | bool | Causes the gun to use a charge system for firing. None of the charge fields work properly without this being set to true. | This field will have no effect without [this](https://rounds.thunderstore.io/package/willuwontu/GunChargePatch/) patch. |
 | Dont Allow Auto Fire | bool | Prevents a player from firing their gun by holding down the shoot button. |  |
@@ -301,20 +407,16 @@ Red fields are either not copied off the card, not used by the game, or both.
 | Scale Stack M | float | Multiplies the size of the spawned object by this value and the number of times it has added to the ObjectsToSpawn array | Does nothing if Scale Stacks is false |
 | Scale From Damage | float | If this value is not 0, it multiplies the size of the spawned object by this value and the damage of the projectile divided by 55\. |  |
 
-## 
-
 ## On Add/On Remove Effects:
 
 If you want to have some kind of effect applied/removed from a player when they take/lose a card you can use the Add Object To Player field on the Character Stat Modifiers to add a gameobject with a mono-behavior on it to the player. The game will automatically remove the object if the player loses the card.  
 The void Start(){} function is called when the card is added, and the void OnDestroy(){} function is called when the card is removed. To get the player the card is on, simply call GetComponentInParent\<Player\>()
 
-## 
-
 ## Reversible Effects:
 
-Sometimes you need to apply a temporary stat change to a player. This should be done using the ReversibleEffect class from ModdingUtils to ensure that it plays nicely with other temporary stat changes. It should also **never** be active during the pick phase or it could have permanent side effects. To use a reversible effect, create a new class that extends the base ReversibleEffect class and then set any necessary values for stat changes in either the OnAwake or OnStart functions. The stat changes are stored to the variables \`gunStatModifier\`, \`gunAmmoStatModifier\`, \`characterDataModifier\`, characterStatModifierModifier\`, \`gravityModifier\`, \`blockModifier\`, and \`healthHandlerModifier\`.   
+Sometimes you need to apply a temporary stat change to a player. This should be done using the ReversibleEffect class from ModdingUtils to ensure that it plays nicely with other temporary stat changes. It should also **never** be active during the pick phase or it could have permanent side effects. To use a reversible effect, create a new class that extends the base ReversibleEffect class and then set any necessary values for stat changes in either the OnAwake or OnStart functions. The stat changes are stored to the variables \`gunStatModifier\`, \`gunAmmoStatModifier\`, \`characterDataModifier\`, \`characterStatModifierModifier\`, \`gravityModifier\`, \`blockModifier\`, and \`healthHandlerModifier\`.   
 For each stat that the modifiers can modify there is an “add” stat and a  “mult” stat, for example \`HealthHandlerModifier\` has \`regen\_add\` which when applied adds its value to the regen stat, and \`regen\_mult\` which when applied multiples the regen stat by its value. There are too many variables to list out here, however, if you would like to look at the extensive list, all of the stat change modifiers exist in [this](https://github.com/pdcook/ModdingUtils/blob/5d014e8c0951c55de972ec98d52f19270fff6505/ModdingUtils/Extensions/TemporaryModifiers.cs) file.  
-Once you set up the stats you wish to adjust, set the \`livesToEffect\` to the number of lives that the effect should apply for. The effects will apply automatically at the end of the start function, if you need to add a delay to that, set \`applyImmediately\` to false. When the component is destroyed the effects will be removed, however, if you need to have logic turning the effect on and off, that can be done by calling the \`ApplyModifers\` and ClearModifiers\` functions respectively.
+Once you set up the stats you wish to adjust, set the \`livesToEffect\` to the number of lives that the effect should apply for. The effects will apply automatically at the end of the start function, if you need to add a delay to that, set \`applyImmediately\` to false. When the component is destroyed the effects will be removed, however, if you need to have logic turning the effect on and off, that can be done by calling the \`ApplyModifers\` and \`ClearModifiers\` functions respectively.
 
 ## Syncing Random Numbers and Other Things:
 
@@ -327,8 +429,6 @@ Once you have determined the outcome of the random event, you must inform the ot
 *  Finally add the values of each parameter of the RPC you are calling as separate parameters. *(If you wish they can also be passed in a single **object\[\]**)*
 
 You can also use \`NetworkingManager.RPC\_Others\` using the same parameters and it will run the code on every client other then the one that called it. Do note though, that calling this function in offline mode *(local play)* will cause it to run the RPC anyways so you should always make sure that \`PhotonNetwork.OfflineMode\` is false before running RPC\_Others.
-
-## 
 
 ## **Help Visual Studio Isn’t Building My Mod**: {#help-visual-studio-isn’t-building-my-mod:}
 
@@ -349,8 +449,57 @@ When adding sound effects to the game, they should be added using a \`SoundUnity
 
 The option to have unity automatically generate namespaces for your files was not introduced until unity 2019 which sadly is a major version after the one we need to use for rounds. However, having namespaces is an important feature of coding as it helps keep code organized between mods. Because of this, I created an editor script to automatically add Namespaces to my files when I created them. I will share the code here, however do note that it only works if you follow the folder structure that I use *(Having your main project folder named \`\_\_ProjectName\` and then having your code directly in that folder or in a subfolder named \`Code\` you can then use subfolders inside of your parent code folder to make sub-namespaces)* 
 
-| using System.Collections.Generic;using System.IO;using System.Linq;public class NamespaceGenerator:UnityEditor.AssetModificationProcessor {	static void OnWillCreateAsset(string assetName) {        	    	UnityEngine.Debug.Log(assetName);        	    	if(\!assetName.EndsWith("cs.meta")) return;        	    	UnityEngine.Debug.Log("Updating " \+ assetName.Substring(0, assetName.Length \- 5));        	    	List\<string\> newFile \= new List\<string\>();        	    	bool added \= false;        	    	string NameSpace \= "";        	    	bool found \= false;        	    	int count \= assetName.Count(f \=\> f \== '/') \- 1;        	    	int replaced \= 0;        	    	string fileName \= assetName;        	    	if(fileName.Contains("/code/")) {        	        	        	var temp \= "";         	        	        	for(int i \= 0; i \< fileName.Length; i++) {        	            	        	        	temp+= fileName\[i\];        	            	        	        	if(temp.Contains("/code/")) {        	                	        	        	fileName \= fileName.Substring(i \+ 1);        	                	        	        	found \= true;        	            	        	        	}        	        	        	}        	    	}        	    	foreach(char c in fileName) {        	        	        	if(c \== '\_') found=true;        	        	        	if(found && c \!= '\_')        	            	        	        	if(c \== '/' && \++replaced \< count)        	                	        	        	NameSpace \+= ".";        	                    		else if(replaced \== count)        	                	        	        	break;        	            	        	        	else NameSpace \+= c;        	    	}        	    	StreamReader sr \= new StreamReader(assetName.Substring(0, assetName.Length\-5));        	    	for(string line \= sr.ReadLine(); line \!= null; line \= sr.ReadLine()) {        	        	        	if(line.Contains("class") && \!added) {        	            	        	        	newFile.Add("namespace " \+ NameSpace \+ " {");        	            	        	        	added \= true;        	        	        	}        	        	        	if(added) newFile.Add('\\t' \+ line);        	        	        	else newFile.Add(line);        	    	}        	    	newFile.Add("}");        	    	sr.Close();        	    	StreamWriter sw \= new StreamWriter(assetName.Substring(0, assetName.Length \- 5),false);        	    	newFile.ForEach(f \=\> sw.WriteLine(f));        	    	sw.Close();	}} |
-| :---- |
+```csharp
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+public class NamespaceGenerator:UnityEditor.AssetModificationProcessor {
+	static void OnWillCreateAsset(string assetName) {
+        	    	UnityEngine.Debug.Log(assetName);
+        	    	if(!assetName.EndsWith("cs.meta")) return;
+        	    	UnityEngine.Debug.Log("Updating " + assetName.Substring(0, assetName.Length - 5));
+        	    	List<string> newFile = new List<string>();
+        	    	bool added = false;
+        	    	string NameSpace = "";
+        	    	bool found = false;
+        	    	int count = assetName.Count(f => f == '/') - 1;
+        	    	int replaced = 0;
+        	    	string fileName = assetName;
+        	    	if(fileName.Contains("/code/")) {
+        	        	        	var temp = "";         	        	        	for(int i = 0; i < fileName.Length; i++) {
+        	            	        	        	temp+= fileName[i];
+        	            	        	        	if(temp.Contains("/code/")) {
+        	                	        	        	fileName = fileName.Substring(i + 1);
+        	                	        	        	found = true;
+        	            	        	        	}
+        	        	        	}
+        	    	}
+        	    	foreach(char c in fileName) {
+        	        	        	if(c == '_') found=true;
+        	        	        	if(found && c != '_')
+        	            	        	        	if(c == '/' && ++replaced < count)
+        	                	        	        	NameSpace += ".";
+        	                    		else if(replaced == count)
+        	                	        	        	break;
+        	            	        	        	else NameSpace += c;
+        	    	}
+        	    	StreamReader sr = new StreamReader(assetName.Substring(0, assetName.Length-5));
+        	    	for(string line = sr.ReadLine(); line != null; line = sr.ReadLine()) {
+        	        	        	if(line.Contains("class") && !added) {
+        	            	        	        	newFile.Add("namespace " + NameSpace + " {");
+        	            	        	        	added = true;
+        	        	        	}
+        	        	        	if(added) newFile.Add('\t' + line);
+        	        	        	else newFile.Add(line);
+        	    	}
+        	    	newFile.Add("}");
+        	    	sr.Close();
+        	    	StreamWriter sw = new StreamWriter(assetName.Substring(0, assetName.Length - 5),false);
+        	    	newFile.ForEach(f => sw.WriteLine(f));
+        	    	sw.Close();
+	}
+}
+```
 
 Putting this in your project’s \`Editor\` folder to edit any **New** cs scripts created to have a namespace set.
 
