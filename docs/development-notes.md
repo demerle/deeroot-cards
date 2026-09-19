@@ -51,6 +51,30 @@ The game code is already decompiled on the linux drive:
 - Decompiled sources: `decompiled/Assembly-CSharp-split/` (798 per-class .cs files) and `decompiled/Assembly-CSharp-firstpass-split/`. **Read these to verify any game API before guessing** — e.g. vanilla cards like `Teleport.cs` are ready-made references.
 - Game install (Windows Steam library): `/mnt/f/SteamLibrary/steamapps/common/ROUNDS/` — re-decompile only if the game updates: `ilspycmd -p --nested-directories -o <out> <...>/Managed/Assembly-CSharp.dll` (need `ilspycmd` — pin **9.1.0.7988**; 11.x targets net9 which isn't installed).
 
+## Card removal → full deck rebuild (verified: Delete card, both v1 bugs reproduced + fixed)
+
+- UnboundLib `Cards.instance.RemoveCardFromPlayer(player, idx, editCardBar)` rebuilds the **whole deck** from scratch: every remaining card's `OnAddCard` re-fires during the vanilla pick pipeline. DON'T assume removal is surgical.
+- **DO** open `RebuildGuard` (static 2s unscaled-time quiet window, `RebuildGuard.cs`) on any removal path and have our cards' `OnAddCard` bail while `IsQuiet` — kills re-fire cascades in both Delete and Double.
+
+## Pick-phase hold (verified: Delete card waits the game, sandbox-tested mechanics)
+
+- `CardChoice.RPCA_DonePicking()` (private) is just `IsPicking = false`; `GM_ArmsRace.DoPick` waits `while (IsPicking)`. A Harmony **prefix returning false** holds the entire pick/round-start flow; on release set `CardChoice.instance.IsPicking = false` yourself — no reflection original-call needed.
+- Patch registration: `new Harmony("id").PatchAll(typeof(PatchClass))`. Do NOT use `Harmony.CreateClassProcessor(...).Patch()` as a static call — doesn't compile (CS0120).
+- Flow replication idiom: one broadcast RPC both bumps shared pending state and shows the client-local OnGUI overlay; clicks gated to picker via `player.data.view.IsMine`.
+- Stall protection: per-client timeout fallback releases the hold; also release if the pending card itself is removed (`OnRemoveCard`).
+- While held, `IsPicking == true` + empty `spawnedCards` makes `DoPlayerSelect` a no-op — picker can't sneak another card pick.
+- Caveat: cross-PhotonView RPC ordering isn't guaranteed online (pending broadcast vs DonePicking) — unverified online; sandbox has no `DoPick` loop so blocking only exercises in real match modes.
+- Arm armed-card logic directly inside `OnAddCard` — a card's own self-add is invisible to Update-polling.
+
+## Player display names (verified in decompile)
+
+- Display name comes from **`PhotonView.Owner.NickName`** (`PlayerName.cs`, `DisplayMatchPlayerNames.cs`); GameObject name is always `Player(Clone)`.
+- `GetDisplayName(Player)` in `DeleteCard.cs`: online → `view.Owner.NickName`; offline → `Player {playerID + 1}`.
+
+## Tooling
+
+- Test logs readable directly at `~/.config/r2modmanPlus-local/ROUNDS/profiles/dev/BepInEx/LogOutput.log` (r2modman dev profile, no need for the user to paste).
+
 ## Conventions
 
 - New stat cards: set values in `SetupCard` on components whose stat fields the doc says are copied off cards (Gun/Block/CharacterStatModifiers + GunAmmo).

@@ -1,9 +1,14 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using UnityEngine;
 using UnboundLib;
 using UnboundLib.Cards;
+using UnboundLib.Extensions;
+using UnboundLib.GameModes;
+using UnboundLib.Utils;
 using ModdingUtils.Extensions;
 
 namespace DeerootCards.Cards
@@ -21,6 +26,7 @@ namespace DeerootCards.Cards
         {
             var effect = player.gameObject.GetOrAddComponent<PortalEffect>();
             effect.SetPlayer(player);
+            PortalEffect.RegisterRoundResetHooks();
             UnityEngine.Debug.Log($"[DEER] PortalCard added to player {player.data.name}");
         }
 
@@ -247,8 +253,17 @@ namespace DeerootCards.Cards
             }
             slots[slot] = pos;
             active[slot] = true;
-            EnsureVisual(ownerPlayerID, slot, pos, active[1 - slot]);
-            EnsureVisual(ownerPlayerID, 1 - slot, slots[1 - slot], active[slot]);
+            bool pairComplete = active[0] && active[1];
+            // Only render slots that were actually placed — creating the not-yet-placed
+            // sibling produced a full-brightness ghost at Vector3.zero (screen middle).
+            if (active[slot])
+            {
+                EnsureVisual(ownerPlayerID, slot, pos, pairComplete);
+            }
+            if (active[1 - slot])
+            {
+                EnsureVisual(ownerPlayerID, 1 - slot, slots[1 - slot], pairComplete);
+            }
         }
 
         private void TouchCheck()
@@ -425,22 +440,41 @@ namespace DeerootCards.Cards
                 dsr.sprite = GetDiscSprite();
                 dsr.sortingOrder = 0;
 
-                var skin = PlayerSkinBank.GetPlayerSkinColors(ownerPlayerID);
-                Color main = skin != null ? skin.color : Color.white;
-                Color back = skin != null ? skin.backgroundColor : new Color(1f, 1f, 1f, 0.25f);
-                sr.color = main;
-                dsr.color = new Color(back.r, back.g, back.b, 0.35f);
-
                 portalVisuals[key] = go;
             }
-            else
+
+            // Re-resolve the skin on every call: under RoundsWithFriends the chosen
+            // color lives in UnboundLib's extra-skins spectrum, not the vanilla bank —
+            // reading GetPlayerSkinColors(playerID) always returned bank slot 0 (orange).
+            Player owner = GetPlayerByID(ownerPlayerID);
+            Color main = Color.white;
+            Color back = new Color(1f, 1f, 1f, 0.25f);
+            if (owner != null)
             {
-                go.transform.position = pos;
+                PlayerSkin skin = GetSkin(owner);
+                if (skin != null)
+                {
+                    main = skin.color;
+                    back = skin.backgroundColor;
+                }
+            }
+
+            go.transform.position = pos;
+            var rends = go.GetComponentsInChildren<SpriteRenderer>();
+            var ringRend = rends.FirstOrDefault(r => r.sortingOrder == 1);
+            var discRend = rends.FirstOrDefault(r => r.sortingOrder == 0);
+            if (ringRend != null)
+            {
+                ringRend.color = main;
+            }
+            if (discRend != null)
+            {
+                discRend.color = new Color(back.r, back.g, back.b, 0.35f);
             }
 
             // dim until its sibling exists; full brightness once linked
             float alpha = pairComplete ? 1f : 0.4f;
-            foreach (var r in go.GetComponentsInChildren<SpriteRenderer>())
+            foreach (var r in rends)
             {
                 Color rc = r.color;
                 rc.a = alpha;
@@ -448,9 +482,73 @@ namespace DeerootCards.Cards
             }
         }
 
+        // Current color of a live player: UnboundLib colorID -> extra skins
+        // (RoundsWithFriends uses these), falling back to the vanilla bank for
+        // plain sandbox players.
+        private static PlayerSkin GetSkin(Player player)
+        {
+            PlayerSkin skin = null;
+            try
+            {
+                int colorID = player.colorID();
+                skin = ExtraPlayerSkins.GetPlayerSkinColors(colorID);
+            }
+            catch (Exception)
+            {
+                // colorID not assigned yet (offline sandbox before UnboundLib wiring)
+            }
+            if (skin == null)
+            {
+                skin = PlayerSkinBank.GetPlayerSkinColors(player.playerID);
+            }
+            return skin;
+        }
+
         private static bool portalActiveState(int ownerPlayerID, int slot)
         {
             return portalActive.TryGetValue(ownerPlayerID, out bool[] a) && a[slot];
+        }
+
+        // ---- round reset (works in vanilla via UnboundLib patches and in
+        // RoundsWithFriends via its own game loop — both fire the same hooks) ----
+        private static bool hooksRegistered;
+
+        public static void RegisterRoundResetHooks()
+        {
+            if (hooksRegistered)
+            {
+                return;
+            }
+            hooksRegistered = true;
+            // every small round (point / deathmatch round), every big round, and
+            // every new game — the last also wipes visuals left over from a
+            // finished match.
+            GameModeManager.AddHook(GameModeHooks.HookPointEnd, gm => ResetAll());
+            GameModeManager.AddHook(GameModeHooks.HookRoundEnd, gm => ResetAll());
+            GameModeManager.AddHook(GameModeHooks.HookGameStart, gm => ResetAll());
+        }
+
+        private static IEnumerator ResetAll()
+        {
+            UnityEngine.Debug.Log("[DEER] Round boundary — resetting all portals");
+            // clear placement/teleport state for every player
+            var ownerIDs = portalPositions.Keys.ToList();
+            foreach (int id in ownerIDs)
+            {
+                RemovePortals(id);
+            }
+            // also drop any orphaned visuals whose owner already left
+            foreach (var kv in portalVisuals)
+            {
+                if (kv.Value != null)
+                {
+                    Destroy(kv.Value);
+                }
+            }
+            portalVisuals.Clear();
+            portalPositions.Clear();
+            portalActive.Clear();
+            yield break;
         }
 
         private static void RemovePortals(int ownerPlayerID)
