@@ -17,10 +17,12 @@ namespace DeerootCards
         void Awake()
         {
             UnityEngine.Debug.Log("[DEER] DeerootCards mod loading, building cards...");
+            Cards.DeleteCard.Init(); // applies the pick-phase hold patch
             CustomCard.BuildCard<OverdriveCard>();
             CustomCard.BuildCard<BlinkCard>();
             CustomCard.BuildCard<PortalCard>();
             CustomCard.BuildCard<DoubleCard>();
+            CustomCard.BuildCard<DeleteCard>();
         }
 
         void Start()

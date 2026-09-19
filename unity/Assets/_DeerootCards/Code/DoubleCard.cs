@@ -17,6 +17,15 @@ namespace DeerootCards.Cards
 
         public override void OnAddCard(Player player, Gun gun, GunAmmo gunAmmo, CharacterData data, HealthHandler health, Gravity gravity, Block block, CharacterStatModifiers characterStats)
         {
+            // The vanilla pick pipeline re-runs during UnboundLib's removal
+            // rebuild — swallow those spurious re-adds or pending doubles get
+            // re-armed by every rebuild.
+            if (RebuildGuard.IsQuiet)
+            {
+                UnityEngine.Debug.Log("[DEER] DoubleCard add suppressed (rebuild window)");
+                return;
+            }
+
             // Arm directly here — the effect is created during THIS card's own
             // application, so its Start() snapshot would miss the self-add.
             var effect = player.gameObject.GetOrAddComponent<DoubleEffect>();
