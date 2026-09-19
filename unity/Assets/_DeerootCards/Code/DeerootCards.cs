@@ -20,6 +20,7 @@ namespace DeerootCards
             CustomCard.BuildCard<OverdriveCard>();
             CustomCard.BuildCard<BlinkCard>();
             CustomCard.BuildCard<PortalCard>();
+            CustomCard.BuildCard<DoubleCard>();
         }
 
         void Start()
