@@ -9,8 +9,9 @@ using ModdingUtils.Extensions;
 namespace DeerootCards.Cards
 {
     /// <summary>
-    /// Portals: pressing [E] places/moves two linked teleporters (alternating A/B)
-    /// at the player's position. Any player touching a portal is teleported to its
+    /// Portals: pressing [E] plants/moves Portal A and [Q] plants/moves Portal B
+    /// at the player's position (shared personal cooldown).
+    /// Any player touching a portal is teleported to its
     /// sibling (goes through walls — vanilla teleport recipe). Personal cooldown,
     /// independent of gun and block.
     /// </summary>
@@ -39,7 +40,7 @@ namespace DeerootCards.Cards
 
         protected override string GetDescription()
         {
-            return "Press E to place a linked teleporter at your spot. Place twice, then walk into your portals to warp. They abuse space-time to ignore walls.";
+            return "Press E or Q to plant a link of two teleporters: E anchors Portal A, Q anchors Portal B, at your spot. Walk into a portal to warp to its twin — through walls. One shared cooldown keeps you honest.";
         }
 
         protected override CardInfoStat[] GetStats()
@@ -49,8 +50,8 @@ namespace DeerootCards.Cards
                 new CardInfoStat
                 {
                     positive = true,
-                    stat = "Press E",
-                    amount = "Place/re-arm a linked teleporter at your position (2.5s cooldown)",
+                    stat = "Press E / Q",
+                    amount = "Plant Portal A (E) or Portal B (Q) at your position — shared 2.5s cooldown",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 }
             };
@@ -78,10 +79,10 @@ namespace DeerootCards.Cards
     }
 
     /// <summary>
-    /// Attached to a player. Pressing the player's portal key (owner client only)
-    /// alternately spawns/moves that player's two portals (A then B) at the
-    /// player's current position, on a personal cooldown, and teleports the
-    /// local player when they touch one of them.
+    /// Attached to a player. Pressing the player's portal keys (owner client,
+    /// E = portal A, Q = portal B) spawns/moves that specific portal at the
+    /// player's current position on a shared personal cooldown, and teleports
+    /// the local player when they touch one of them.
     /// </summary>
     public class PortalEffect : MonoBehaviour
     {
@@ -98,23 +99,62 @@ namespace DeerootCards.Cards
         private static Sprite discSprite;
 
         // ---- per-player (per-effect-instance) state ----
-        private int blockCounter = 0;
+        private KeyCode keyPortalA = KeyCode.E;
+        private KeyCode keyPortalB = KeyCode.Q;
         private float placeCooldownLeft;
         private float cooldownUntil;
         private bool armed = true;
         private const float touchRadius = 0.75f;
         private const float placeCooldown = 2.5f; // personal portal keybind cooldown
 
-        // Local split-screen safety: player 0 = E, player 1 = right shift.
-        // Online clients each have their own keyboard/playerID 0, so everyone
-        // else effectively uses E as well — one key name, personal experience.
-        private KeyCode KeyFor(int playerID)
+        // Key table is per-CLIENT, not per-playerID: online each client has its
+        // own keyboard, so every (solo/online) local player uses E/Q regardless
+        // of playerID. Only on true local split-screen (2+ IsMine players on one
+        // machine) does player index determine the key pair (P1 = E/Q, P2 = RShift/RCtrl).
+        private void ResolveKeys()
         {
-            if (playerID == 1)
+            if (player == null || player.data == null)
             {
-                return KeyCode.RightShift;
+                keyPortalA = KeyCode.E;
+                keyPortalB = KeyCode.Q;
+                return;
             }
-            return KeyCode.E;
+            int localIndex = 0;
+            int localCount = 0;
+            foreach (var p in PlayerManager.instance.players)
+            {
+                if (p == null || p.data == null)
+                {
+                    continue;
+                }
+                if (p.data.view.IsMine)
+                {
+                    if (p == player)
+                    {
+                        localIndex = localCount;
+                    }
+                    localCount++;
+                }
+            }
+            if (localCount > 1)
+            {
+                if (localIndex == 1)
+                {
+                    keyPortalA = KeyCode.RightShift;
+                    keyPortalB = KeyCode.RightControl;
+                }
+                else
+                {
+                    keyPortalA = KeyCode.E;
+                    keyPortalB = KeyCode.Q;
+                }
+            }
+            else
+            {
+                keyPortalA = KeyCode.E;
+                keyPortalB = KeyCode.Q;
+            }
+            UnityEngine.Debug.Log($"[DEER] Portal keys resolved: A={keyPortalA} B={keyPortalB} (local player index {localIndex}/{localCount})");
         }
 
         private const float teleportCooldown = 0.35f;
@@ -130,6 +170,7 @@ namespace DeerootCards.Cards
             {
                 player = GetComponent<Player>();
             }
+            ResolveKeys();
             UnityEngine.Debug.Log($"[DEER] PortalEffect started on player {player.data.name}");
         }
 
@@ -166,25 +207,27 @@ namespace DeerootCards.Cards
                 return;
             }
 
-            // edge-triggered press, personal cooldown
-            if (Input.GetKeyDown(KeyFor(player.playerID)) && placeCooldownLeft <= 0f)
+            // edge-triggered presses; both keys share one personal cooldown.
+            // Each key targets a FIXED slot: A/B are anchor-or-move, alternation is gone.
+            if (placeCooldownLeft <= 0f)
             {
-                placeCooldownLeft = placeCooldown;
+                if (Input.GetKeyDown(keyPortalA) || Input.GetKeyDown(keyPortalB))
+                {
+                    int slot = Input.GetKeyDown(keyPortalA) ? 0 : 1;
+                    placeCooldownLeft = placeCooldown;
 
-                int slot = blockCounter % 2;
-                blockCounter++;
+                    Vector3 pos = player.transform.position;
+                    pos.z = 0f;
+                    UnityEngine.Debug.Log($"[DEER] Portal key {(slot == 0 ? keyPortalA.ToString() : keyPortalB.ToString())} -> slot {slot} at {pos} (cooldown {placeCooldown}s)");
 
-                Vector3 pos = player.transform.position;
-                pos.z = 0f;
-                UnityEngine.Debug.Log($"[DEER] Portal key #{blockCounter} -> slot {slot} at {pos} (cooldown {placeCooldown}s)");
-
-                UnboundLib.NetworkingManager.RPC(
-                    typeof(PortalEffect),
-                    nameof(RPC_PlacePortal),
-                    player.playerID,
-                    slot,
-                    pos
-                );
+                    UnboundLib.NetworkingManager.RPC(
+                        typeof(PortalEffect),
+                        nameof(RPC_PlacePortal),
+                        player.playerID,
+                        slot,
+                        pos
+                    );
+                }
             }
         }
 
@@ -353,7 +396,7 @@ namespace DeerootCards.Cards
                 };
             }
             hudLabelStyle.fontSize = Mathf.RoundToInt(size * (ready ? 0.34f : 0.38f));
-            string caption = ready ? KeyFor(player.playerID).ToString() : placeCooldownLeft.ToString("F1");
+            string caption = ready ? $"{keyPortalA} / {keyPortalB}" : placeCooldownLeft.ToString("F1");
             GUI.color = Color.white;
             GUI.Label(area, caption, hudLabelStyle);
             GUI.color = Color.white;
