@@ -99,6 +99,7 @@ namespace DeerootCards.Cards
             var harmony = new Harmony("com.deeroot.cards.heart");
             harmony.PatchAll(typeof(HeartEffect.BulletHeartPatch));
             harmony.PatchAll(typeof(HeartEffect.DeathHeartPatch));
+            harmony.PatchAll(typeof(HeartEffect.IncomingDamageGate));
         }
     }
 
@@ -117,6 +118,25 @@ namespace DeerootCards.Cards
         private static Dictionary<int, HeartState> states = new Dictionary<int, HeartState>();
         private static Dictionary<int, Vector3> heartPositions = new Dictionary<int, Vector3>();
         private static Dictionary<int, GameObject> heartObjects = new Dictionary<int, GameObject>();
+
+        // ---- Milestone 2 registries (keyed by ownerPlayerID) ----
+        // constant drain: every tick removes the SAME amount of hp, so the
+        // owner dies exactly lifetime seconds after the throw (sampled once
+        // per throw from maxHealth).
+        private static Dictionary<int, float> drainPerTick = new Dictionary<int, float>();
+        private static Dictionary<int, float> drainTimer = new Dictionary<int, float>();
+        // originals, saved at throw and restored the moment the heart resolves
+        private static Dictionary<int, float> savedMoveSpeed = new Dictionary<int, float>();
+        private static Dictionary<int, float> savedRegen = new Dictionary<int, float>();
+        private static Dictionary<int, float> savedStatsRegen = new Dictionary<int, float>();
+        private static Dictionary<int, float> savedLifeSteal = new Dictionary<int, float>();
+        private static Dictionary<int, bool> loggedGateBlock = new Dictionary<int, bool>();
+        // true only while the drain itself applies its lethal finisher, so the
+        // damage gate knows our own DoDamage call is allowed through
+        internal static bool applyingHeartDrain;
+
+        private const float drainTickInterval = 0.25f;
+        private const float heartSlowMultiplier = 0.75f;
 
         private static Sprite heartSprite;
 
@@ -196,10 +216,179 @@ namespace DeerootCards.Cards
                 states[player.playerID] = HeartState.Carried;
             }
 
+            // Milestone 2: the heart drain ticks on EVERY client (from the
+            // replicated state registries), debiting hp identically everywhere
+            // — same deterministic-replication philosophy as the rest of the
+            // card. Only the heart-card owner's HeartEffect drives it, which
+            // is enough: only heart-card owners can ever be OnGround.
+            TickHeartDrain();
+
             if (player.data.view.IsMine)
             {
                 SimulateOwner();
             }
+        }
+
+        // ---------------------------------------------------------------
+        // Milestone 2 — heart drain
+        //
+        // MODEL (user spec): constant damage EVERY tick. Lifetime is a
+        // function of maxHealth sampled at throw:
+        //     L(h) = 20h / (h + 100)          (seconds)
+        //     dps = hp / L(h) = (h + 100)/20  (constant every tick)
+        // Default 100 hp -> exactly 10 hp/s, dead 10 s after the throw.
+        // Huge health pools approach but NEVER exceed a 20 s lifetime —
+        // stacking health cards can't make the heart last forever.
+        // The tick amount is the same every tick (fixed 0.25 s ticks).
+        // ---------------------------------------------------------------
+        private static void TickHeartDrain()
+        {
+            if (!GameManager.instance.battleOngoing || TimeHandler.timeScale <= 0f)
+            {
+                return;
+            }
+            foreach (var kv in states)
+            {
+                if (kv.Value != HeartState.OnGround)
+                {
+                    continue;
+                }
+                int id = kv.Key;
+                float tickDmg;
+                if (!drainPerTick.TryGetValue(id, out tickDmg) || tickDmg <= 0f)
+                {
+                    continue;
+                }
+                Player owner = GetPlayerByID(id);
+                if (owner == null || owner.data == null || owner.data.dead)
+                {
+                    continue;
+                }
+                float t;
+                if (!drainTimer.TryGetValue(id, out t))
+                {
+                    t = 0f;
+                }
+                t += TimeHandler.deltaTime; // already timescale-scaled (TimeHandler.cs:52)
+                while (t >= drainTickInterval)
+                {
+                    t -= drainTickInterval;
+                    ApplyDrainTick(owner, tickDmg);
+                }
+                drainTimer[id] = t;
+            }
+        }
+
+        private static void ApplyDrainTick(Player owner, float tickDmg)
+        {
+            if (owner.data.health <= 0f)
+            {
+                return;
+            }
+            owner.data.health -= tickDmg; // constant tick — hp is spent linearly
+            if (owner.data.health <= 0f)
+            {
+                // hp fully drained: finish with the vanilla lethal death path
+                // (correct death effect, Phoenix handling, kill-free death).
+                // The bypass flag lets our own DoDamage past the damage gate.
+                UnityEngine.Debug.Log($"[DEER] Heart drain finished — killing {owner.data.name}");
+                applyingHeartDrain = true;
+                owner.data.healthHandler.DoDamage(
+                    new Vector2(owner.data.maxHealth * 10f, 0f),
+                    owner.transform.position,
+                    Color.black,
+                    null,
+                    null,
+                    false,
+                    true,
+                    false
+                );
+                applyingHeartDrain = false;
+            }
+        }
+
+        // called from RPC_ThrowHeart on every client: samples the drain and
+        // applies the heart-out stat modifications
+        private static void BeginThrowBuffs(int ownerPlayerID)
+        {
+            Player owner = GetPlayerByID(ownerPlayerID);
+            if (owner == null || owner.data == null)
+            {
+                return;
+            }
+            float maxHp = owner.data.maxHealth;
+            float lifetime = 20f * maxHp / (maxHp + 100f);
+            float dps = (maxHp + 100f) / 20f; // = hpAtThrow / lifetime, constant
+            drainPerTick[ownerPlayerID] = dps * drainTickInterval; // 40 ticks * dmg = maxHp when h=100
+            drainTimer[ownerPlayerID] = 0f;
+            loggedGateBlock[ownerPlayerID] = false;
+            UnityEngine.Debug.Log($"[DEER] Heart drain sampled: maxHealth {maxHp:F0} -> lifetime {lifetime:F2}s, drain {dps:F2} hp/s ({dps * drainTickInterval:F2} hp per 0.25s tick)");
+
+            var stats = owner.data.stats;
+            if (stats != null)
+            {
+                savedMoveSpeed[ownerPlayerID] = stats.movementSpeed;
+                stats.movementSpeed = stats.movementSpeed * heartSlowMultiplier;
+            }
+            // zero ALL healing so the drain always wins in the end
+            var health = owner.data.healthHandler;
+            if (health != null)
+            {
+                savedRegen[ownerPlayerID] = health.regeneration;
+                health.regeneration = 0f;
+            }
+            if (stats != null)
+            {
+                savedStatsRegen[ownerPlayerID] = stats.regen;
+                savedLifeSteal[ownerPlayerID] = stats.lifeSteal;
+                stats.regen = 0f;
+                stats.lifeSteal = 0f;
+            }
+        }
+
+        // called from RemoveHeart — the single choke point every heart-removal
+        // path (heart shot, wall hit, owner death, round reset) funnels into
+        private static void RestoreThrowBuffs(int ownerPlayerID)
+        {
+            drainPerTick.Remove(ownerPlayerID);
+            drainTimer.Remove(ownerPlayerID);
+            loggedGateBlock.Remove(ownerPlayerID);
+            Player owner = GetPlayerByID(ownerPlayerID);
+            if (owner == null || owner.data == null)
+            {
+                savedMoveSpeed.Remove(ownerPlayerID);
+                savedRegen.Remove(ownerPlayerID);
+                savedStatsRegen.Remove(ownerPlayerID);
+                savedLifeSteal.Remove(ownerPlayerID);
+                return;
+            }
+            var stats = owner.data.stats;
+            float v;
+            if (stats != null && savedMoveSpeed.TryGetValue(ownerPlayerID, out v))
+            {
+                stats.movementSpeed = v;
+            }
+            var health = owner.data.healthHandler;
+            if (health != null && savedRegen.TryGetValue(ownerPlayerID, out v))
+            {
+                health.regeneration = v;
+            }
+            if (stats != null)
+            {
+                if (savedStatsRegen.TryGetValue(ownerPlayerID, out v))
+                {
+                    stats.regen = v;
+                }
+                if (savedLifeSteal.TryGetValue(ownerPlayerID, out v))
+                {
+                    stats.lifeSteal = v;
+                }
+            }
+            savedMoveSpeed.Remove(ownerPlayerID);
+            savedRegen.Remove(ownerPlayerID);
+            savedStatsRegen.Remove(ownerPlayerID);
+            savedLifeSteal.Remove(ownerPlayerID);
+            UnityEngine.Debug.Log($"[DEER] Heart resolved — stats restored for {owner.data.name}");
         }
 
         private static void DebugHeartDeathReset(Player player)
@@ -288,6 +477,7 @@ namespace DeerootCards.Cards
         {
             UnityEngine.Debug.Log($"[DEER] RPC_ThrowHeart owner {ownerPlayerID} at {pos}, vel {vel}");
             RemoveHeart(ownerPlayerID); // re-throw safety
+            BeginThrowBuffs(ownerPlayerID);
             states[ownerPlayerID] = HeartState.OnGround;
             EnsureHeartObject(ownerPlayerID, pos, vel);
         }
@@ -407,6 +597,7 @@ namespace DeerootCards.Cards
         // current color of a live player (same fallback ladder as portals)
         private static void RemoveHeart(int ownerPlayerID)
         {
+            RestoreThrowBuffs(ownerPlayerID);
             heartObjects.Remove(ownerPlayerID);
             heartPositions.Remove(ownerPlayerID);
             var go = GameObject.Find($"DEER_Heart_{ownerPlayerID}");
@@ -558,6 +749,45 @@ namespace DeerootCards.Cards
             private static void AfterDiePhoenix(HealthHandler __instance)
             {
                 ResetOnDeath(__instance);
+            }
+        }
+
+        // Milestone 2 — heart-out invincibility. HealthHandler.DoDamage is the
+        // single funnel for ALL conventional damage (decompiled, verified):
+        //   TakeDamage -> DoDamage, RPCA_SendTakeDamage -> TakeDamage -> DoDamage,
+        //   DamageOverTime.cs:34 -> health.DoDamage per DoT interval.
+        // While the owner's heart is OnGround, a prefix here cancels every
+        // incoming hit on EVERY client — including the owner's own bullets.
+        // Map deaths (pits, spike settle) are not damage and still apply,
+        // which is by design. Our drain finisher passes through via the
+        // applyingHeartDrain bypass flag; the heart-shot kill is naturally
+        // unaffected because the state is flipped off OnGround before it fires.
+        [HarmonyPatch]
+        internal static class IncomingDamageGate
+        {
+            [HarmonyPatch(typeof(HealthHandler), "DoDamage")]
+            [HarmonyPrefix]
+            private static bool Gate(HealthHandler __instance)
+            {
+                if (applyingHeartDrain)
+                {
+                    return true; // our own lethal drain finisher must land
+                }
+                var p = __instance.GetComponent<Player>();
+                if (p == null)
+                {
+                    return true;
+                }
+                if (GetState(p.playerID) == HeartState.OnGround)
+                {
+                    if (!loggedGateBlock.TryGetValue(p.playerID, out bool logged) || !logged)
+                    {
+                        loggedGateBlock[p.playerID] = true;
+                        UnityEngine.Debug.Log($"[DEER] Damage blocked — {p.data.name} is heart-out and invincible");
+                    }
+                    return false;
+                }
+                return true;
             }
         }
 

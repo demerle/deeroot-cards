@@ -71,6 +71,18 @@ The game code is already decompiled on the linux drive:
 - Display name comes from **`PhotonView.Owner.NickName`** (`PlayerName.cs`, `DisplayMatchPlayerNames.cs`); GameObject name is always `Player(Clone)`.
 - `GetDisplayName(Player)` in `DeleteCard.cs`: online → `view.Owner.NickName`; offline → `Player {playerID + 1}`.
 
+## Health/damage funnel (verified in decompile — Heart card Milestone 2)
+
+- **`HealthHandler.DoDamage` is the single damage funnel**: `TakeDamage → DoDamage`, `RPCA_SendTakeDamage → TakeDamage → DoDamage`, `DamageOverTime.cs:34 → health.DoDamage (per DoT interval)`. One Harmony prefix on `DoDamage` gates everything (bullets, explosions, DoT). Wall/pit/spike deaths are not damage — unaffected.
+- Regen actually heals every frame via **`HealthHandler.regeneration`** (public float) in `HealthHandler.Update`; `CharacterStatModifiers.regen` only feeds it at stat-apply time (`ApplyCardStats.cs:136`). Zero `HealthHandler.regeneration` to disable ALL healing. Lifesteal is consumed in `CharacterStatModifiers.DealtDamage` off `stats.lifeSteal`.
+- `TimeHandler.deltaTime` (static) = `Time.deltaTime × timeScale`, already scaled — use it directly for timers instead of recomputing.
+- `CharacterStatModifiers.ResetStats()` resets movementSpeed/regen/lifeSteal wholesale on round boundaries — temporary stat modify/restore around an ability is safe if restored in the same ability cycle.
+
+## Heart card specifics (verified in-game / decompile)
+
+- State-transition React idiom: throw → save stats + zero regen/lifesteal + `movementSpeed ×0.75`; restore in `RemoveHeart` (the single choke point every removal path funnels into).
+- Heart-out damage gate: prefix on `DoDamage` returning `false` while the owner's heart is OnGround — owner fully invincible (incl. own bullets). Own lethal finishers need a static bypass flag (`applyingHeartDrain`).
+
 ## Tooling
 
 - Test logs readable directly at `~/.config/r2modmanPlus-local/ROUNDS/profiles/dev/BepInEx/LogOutput.log` (r2modman dev profile, no need for the user to paste).
