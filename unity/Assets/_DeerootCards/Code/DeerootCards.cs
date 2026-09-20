@@ -22,6 +22,7 @@ namespace DeerootCards
             Cards.HeartCard.Init(); // applies the bullet-heart MoveTransform patch
             CustomCard.BuildCard<OverdriveCard>();
             CustomCard.BuildCard<BlinkCard>();
+            CustomCard.BuildCard<DiveCard>();
             CustomCard.BuildCard<PortalCard>();
             CustomCard.BuildCard<DoubleCard>();
             CustomCard.BuildCard<DeleteCard>();
