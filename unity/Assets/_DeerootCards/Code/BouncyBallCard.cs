@@ -16,7 +16,23 @@ namespace DeerootCards.Cards
         // The speed multiplier (vanilla CharacterStatModifiers.movementSpeed is a
         // plain multiplier, default 1).
         private const float SpeedMultiplier = 1.5f;
-        internal const float KnockbackMultiplier = 3f;
+
+        // Per-source knockback multipliers (separation of concerns):
+        // the funnel patch (CallTakeForce) applies whichever multiplier the
+        // source stamps announce; sources that never announce get Default.
+        internal const float DefaultMultiplier = 3f;     // explosions, boxes, damage boxes, line attacks
+        internal const float BulletMultiplier = 4f;      // ProjectileHit.RPCA_DoHit
+        internal const float OutOfBoundsMultiplier = 2f; // OutOfBoundsHandler.LateUpdate bounce
+
+        // Handoff between source stamps and the funnel patch (0 / "default" = none active).
+        internal static float SourceMultiplier;
+        internal static string SourceTag = "default";
+
+        internal static bool HasCard(CharacterData data)
+        {
+            return data != null && data.currentCards != null &&
+                   data.currentCards.Any(c => c != null && c.cardName == CardName);
+        }
 
         private static bool harmonyApplied;
 
@@ -24,7 +40,9 @@ namespace DeerootCards.Cards
         {
             if (harmonyApplied) return;
             harmonyApplied = true;
-            new Harmony("com.deeroot.cards.bouncyball").PatchAll(typeof(BouncyBallKnockbackPatch));
+            var harmony = new Harmony("com.deeroot.cards.bouncyball");
+            harmony.PatchAll(typeof(BouncyBallKnockbackPatch));
+            harmony.PatchAll(typeof(BouncyBallSourcePatch));
         }
 
         public override void SetupCard(CardInfo cardInfo, Gun gun, ApplyCardStats cardStats, CharacterStatModifiers statModifiers, Block block)
@@ -98,13 +116,17 @@ namespace DeerootCards.Cards
     }
 
     /// <summary>
-    /// Triples knockback taken by Bouncy Ball holders.
+    /// The funnel: scales knockback taken by Bouncy Ball holders.
     ///
     /// Patch point: HealthHandler.CallTakeForce — the NETWORKED wrapper every
     /// external knockback source funnels through (bullets, explosions, damage
     /// boxes, physics objects i.e. boxes hitting players, line attacks,
-    /// out-of-bounds bounce). The tripled value rides the vanilla
+    /// out-of-bounds bounce). The scaled value rides the vanilla
     /// RPCA_SendTakeForce RPC to every client, so it syncs for free.
+    ///
+    /// Multiplier comes from BouncyBallCard.SourceMultiplier, set by the source
+    /// stamps in BouncyBallSourcePatch around their CallTakeForce window:
+    /// bullets ×4, out-of-bounds bounce ×2, everything else ×3.
     ///
     /// Deliberately NOT affected (they call TakeForce directly, skipping
     /// CallTakeForce): the holder's jump, block self-push, Shield Charge and
@@ -121,17 +143,63 @@ namespace DeerootCards.Cards
             // HealthHandler and CharacterData share a GameObject (vanilla resolves
             // it exactly like this in HealthHandler.Awake: data = GetComponent<...>).
             var data = __instance.GetComponent<CharacterData>();
-            // Match by cardName: currentCards stores sourceCard (the registered
-            // prefab instance), so instance-identity caching from SetupCard is
-            // wrong — SetupCard re-runs per spawned pick-card clone.
-            if (data == null || data.currentCards == null ||
-                !data.currentCards.Any(c => c != null && c.cardName == BouncyBallCard.CardName))
+            if (!BouncyBallCard.HasCard(data))
             {
                 return;
             }
+            float multiplier = BouncyBallCard.SourceMultiplier > 0f
+                ? BouncyBallCard.SourceMultiplier
+                : BouncyBallCard.DefaultMultiplier;
+            string tag = BouncyBallCard.SourceMultiplier > 0f ? BouncyBallCard.SourceTag : "default";
             Vector2 before = force;
-            force *= BouncyBallCard.KnockbackMultiplier;
-            UnityEngine.Debug.Log($"[DEER] BouncyBall: tripled force {before.magnitude:F0} -> {force.magnitude:F0} on {data.player?.name ?? data.gameObject.name}");
+            force *= multiplier;
+            UnityEngine.Debug.Log($"[DEER] BouncyBall: x{multiplier:F0} ({tag}) force {before.magnitude:F0} -> {force.magnitude:F0} on {data.player?.name ?? data.gameObject.name}");
+        }
+    }
+
+    /// <summary>
+    /// Source stamps: announce which knockback source is resolving, so the
+    /// CallTakeForce funnel can pick a per-source multiplier. Pure flag
+    /// setters — no game logic. Postfixes reset before the next event.
+    /// (If a patched original throws, Harmony skips the postfix — worst case
+    /// is one event with a stale multiplier until the next stamp; risk ≈ 0.)
+    /// </summary>
+    [HarmonyPatch]
+    public class BouncyBallSourcePatch
+    {
+        // Bullet knockback (replicated RpcTarget.All — runs on every client).
+        [HarmonyPatch(typeof(ProjectileHit), nameof(ProjectileHit.RPCA_DoHit))]
+        [HarmonyPrefix]
+        static void BulletPrefix()
+        {
+            BouncyBallCard.SourceMultiplier = BouncyBallCard.BulletMultiplier;
+            BouncyBallCard.SourceTag = "bullet";
+        }
+
+        [HarmonyPatch(typeof(ProjectileHit), nameof(ProjectileHit.RPCA_DoHit))]
+        [HarmonyPostfix]
+        static void BulletPostfix()
+        {
+            BouncyBallCard.SourceMultiplier = 0f;
+            BouncyBallCard.SourceTag = "default";
+        }
+
+        // Out-of-bounds bounce: the pit/side-bounds push-back (both the blocking
+        // 400x-mass and normal 200x-mass branches, every ~0.1s while out).
+        [HarmonyPatch(typeof(OutOfBoundsHandler), "LateUpdate")]
+        [HarmonyPrefix]
+        static void OutOfBoundsPrefix()
+        {
+            BouncyBallCard.SourceMultiplier = BouncyBallCard.OutOfBoundsMultiplier;
+            BouncyBallCard.SourceTag = "ob";
+        }
+
+        [HarmonyPatch(typeof(OutOfBoundsHandler), "LateUpdate")]
+        [HarmonyPostfix]
+        static void OutOfBoundsPostfix()
+        {
+            BouncyBallCard.SourceMultiplier = 0f;
+            BouncyBallCard.SourceTag = "default";
         }
     }
 }
