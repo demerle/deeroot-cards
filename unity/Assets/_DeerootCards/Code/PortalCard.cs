@@ -64,8 +64,8 @@ namespace DeerootCards.Cards
                 new CardInfoStat
                 {
                     positive = true,
-                    stat = "Press E / Q",
-                    amount = "Plant Portal A (E) or Portal B (Q) at your position — shared 2.5s cooldown",
+                    stat = "Place Portal",
+                    amount = "E (1st) / Q (2nd)",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 },
                 new CardInfoStat
@@ -74,7 +74,15 @@ namespace DeerootCards.Cards
                     stat = "Movement speed",
                     amount = "-25%",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
+                },
+                new CardInfoStat
+                {
+                    positive = false,
+                    stat = "Ability Cooldown",
+                    amount = "2.5 seconds",
+                    simepleAmount = CardInfoStat.SimpleAmount.Some
                 }
+
             };
         }
 
