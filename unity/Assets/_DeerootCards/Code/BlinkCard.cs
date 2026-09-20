@@ -10,6 +10,13 @@ namespace DeerootCards.Cards
     /// </summary>
     public class BlinkCard : CustomCard
     {
+        public override void SetupCard(CardInfo cardInfo, Gun gun, ApplyCardStats cardStats, CharacterStatModifiers statModifiers, Block block)
+        {
+            // downside: flat 3s added to block cooldown — decompiled Block:
+            // effective cooldown = (cooldown + cdAdd) * cdMultiplier, base 4s → 7s
+            block.cdAdd = 3f;
+            UnityEngine.Debug.Log($"[DEER] BlinkCard SetupCard: setting block.cdAdd to {block.cdAdd}");
+        }
 
         public override void OnAddCard(Player player, Gun gun, GunAmmo gunAmmo, CharacterData data, HealthHandler health, Gravity gravity, Block block, CharacterStatModifiers characterStats)
         {
@@ -46,6 +53,13 @@ namespace DeerootCards.Cards
                     positive = true,
                     stat = "On block",
                     amount = "Teleport to cursor",
+                    simepleAmount = CardInfoStat.SimpleAmount.Some
+                },
+                new CardInfoStat
+                {
+                    positive = false,
+                    stat = "Block cooldown",
+                    amount = "+3s",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 }
             };

@@ -50,7 +50,7 @@ namespace DeerootCards.Cards
 
         protected override string GetDescription()
         {
-            return "Double it and give it to the next person — your next card hits twice.";
+            return "Receive two of your next card you choose.";
         }
 
         protected override CardInfoStat[] GetStats()

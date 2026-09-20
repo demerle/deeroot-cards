@@ -23,6 +23,13 @@ namespace DeerootCards.Cards
     /// </summary>
     public class PortalCard : CustomCard
     {
+        public override void SetupCard(CardInfo cardInfo, Gun gun, ApplyCardStats cardStats, CharacterStatModifiers statModifiers, Block block)
+        {
+            // downside: -25% movement speed (multiplier field; 0.75 = 75% of normal)
+            statModifiers.movementSpeed = 0.75f;
+            UnityEngine.Debug.Log($"[DEER] PortalCard SetupCard: setting movementSpeed to {statModifiers.movementSpeed}");
+        }
+
         public override void OnAddCard(Player player, Gun gun, GunAmmo gunAmmo, CharacterData data, HealthHandler health, Gravity gravity, Block block, CharacterStatModifiers characterStats)
         {
             var effect = player.gameObject.GetOrAddComponent<PortalEffect>();
@@ -47,7 +54,7 @@ namespace DeerootCards.Cards
 
         protected override string GetDescription()
         {
-            return "Press E or Q to plant a link of two teleporters: E anchors Portal A, Q anchors Portal B, at your spot. Walk into a portal to warp to its twin — through walls. One shared cooldown keeps you honest.";
+            return "Control two connected portals like an absolute gamer.";
         }
 
         protected override CardInfoStat[] GetStats()
@@ -59,6 +66,13 @@ namespace DeerootCards.Cards
                     positive = true,
                     stat = "Press E / Q",
                     amount = "Plant Portal A (E) or Portal B (Q) at your position — shared 2.5s cooldown",
+                    simepleAmount = CardInfoStat.SimpleAmount.Some
+                },
+                new CardInfoStat
+                {
+                    positive = false,
+                    stat = "Movement speed",
+                    amount = "-25%",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 }
             };

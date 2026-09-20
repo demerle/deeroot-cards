@@ -4,7 +4,7 @@ using UnboundLib.Cards;
 namespace DeerootCards.Cards
 {
     /// <summary>
-    /// Overdrive: +50% attack speed, no downsides.
+    /// Quick Attack (formerly Overdrive): +50% attack speed, -25% movement speed.
     /// </summary>
     public class OverdriveCard : CustomCard
     {
@@ -15,7 +15,9 @@ namespace DeerootCards.Cards
             // cooldown between attacks: a LOWER value means attacks come out MORE often.
             // 2/3 ~= 0.667 gives a 50% increase in attack rate.
             gun.attackSpeed = 2f / 3f;
-            UnityEngine.Debug.Log($"[DEER] OverdriveCard SetupCard: setting gun.attackSpeed to {gun.attackSpeed}");
+            // downside: -25% movement speed (multiplier field; 0.75 = 75% of normal)
+            statModifiers.movementSpeed = 0.75f;
+            UnityEngine.Debug.Log($"[DEER] OverdriveCard SetupCard: gun.attackSpeed={gun.attackSpeed}, movementSpeed={statModifiers.movementSpeed}");
         }
 
         public override void OnAddCard(Player player, Gun gun, GunAmmo gunAmmo, CharacterData data, HealthHandler health, Gravity gravity, Block block, CharacterStatModifiers characterStats)
@@ -29,12 +31,12 @@ namespace DeerootCards.Cards
 
         protected override string GetTitle()
         {
-            return "Overdrive";
+            return "Quick Attack";
         }
 
         protected override string GetDescription()
         {
-            return "Your weapon operates well past its limits.";
+            return "Your weapon operates well past its limits — your legs can't keep up.";
         }
 
         protected override CardInfoStat[] GetStats()
@@ -47,7 +49,7 @@ namespace DeerootCards.Cards
                     stat = "Attack speed",
                     amount = "+50%",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
-                }
+                },
             };
         }
 
