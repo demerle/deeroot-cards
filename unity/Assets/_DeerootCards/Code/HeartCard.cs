@@ -96,7 +96,9 @@ namespace DeerootCards.Cards
         {
             if (harmonyApplied) return;
             harmonyApplied = true;
-            new Harmony("com.deeroot.cards.heart").PatchAll(typeof(HeartEffect.BulletHeartPatch));
+            var harmony = new Harmony("com.deeroot.cards.heart");
+            harmony.PatchAll(typeof(HeartEffect.BulletHeartPatch));
+            harmony.PatchAll(typeof(HeartEffect.DeathHeartPatch));
         }
     }
 
@@ -183,10 +185,26 @@ namespace DeerootCards.Cards
                 return;
             }
 
+            // ability reset on owner death — runs on EVERY client (data.dead is
+            // synced): any owner death (heart kill, other kill, point end,
+            // Phoenix) clears the heart everywhere deterministically and returns
+            // the throw to Carried, so sandbox testing and Phoenix just work.
+            if (player.data.dead && GetState(player.playerID) != HeartState.Carried)
+            {
+                DebugHeartDeathReset(player);
+                RemoveHeart(player.playerID);
+                states[player.playerID] = HeartState.Carried;
+            }
+
             if (player.data.view.IsMine)
             {
                 SimulateOwner();
             }
+        }
+
+        private static void DebugHeartDeathReset(Player player)
+        {
+            UnityEngine.Debug.Log($"[DEER] Owner died — heart removed and throw re-armed for {player.data.name}");
         }
 
         // ---- local (owning client) control — one throw per round ----
@@ -498,6 +516,51 @@ namespace DeerootCards.Cards
             }
         }
 
+        // Death cleanup hook. Every death routes through HealthHandler.RPCA_Die
+        // (or RPCA_Die_Phoenix for Phoenix deaths) — the same RPC that sets
+        // data.dead = true and DEACTIVATES the player GameObject. That
+        // deactivation is why the old HeartEffect.Update dead-check never ran:
+        // a MonoBehaviour on a deactivated GameObject gets no Update ticks.
+        // These PunRPCs execute locally on EVERY client, so a postfix here
+        // re-arms the throw and removes the heart everywhere deterministically
+        // (no network message needed, no reliance on Update running).
+        [HarmonyPatch]
+        internal static class DeathHeartPatch
+        {
+            private static void ResetOnDeath(HealthHandler health)
+            {
+                if (health == null)
+                {
+                    return;
+                }
+                var player = health.GetComponent<Player>();
+                if (player == null)
+                {
+                    return;
+                }
+                if (GetState(player.playerID) != HeartState.Carried)
+                {
+                    RemoveHeart(player.playerID);
+                    states[player.playerID] = HeartState.Carried;
+                    UnityEngine.Debug.Log($"[DEER] Owner died — heart removed and throw re-armed for {player.data.name}");
+                }
+            }
+
+            [HarmonyPatch(typeof(HealthHandler), "RPCA_Die")]
+            [HarmonyPostfix]
+            private static void AfterDie(HealthHandler __instance)
+            {
+                ResetOnDeath(__instance);
+            }
+
+            [HarmonyPatch(typeof(HealthHandler), "RPCA_Die_Phoenix")]
+            [HarmonyPostfix]
+            private static void AfterDiePhoenix(HealthHandler __instance)
+            {
+                ResetOnDeath(__instance);
+            }
+        }
+
         // lazily built/cached heart-disc list — valid for the current frame
         private static List<(int owner, Vector3 pos, float radius)> heartDiscsCache;
         private static int heartDiscsFrame = -1;
@@ -713,12 +776,15 @@ namespace DeerootCards.Cards
         private bool loggedSettle;
         private float sinceSpawn;
 
-        private const float radius = 0.35f;
-        private const float bounciness = 0.15f;
-        private const float friction = 0.4f;
+        private const float radius = 0.525f; // 50% larger (0.35 * 1.5)
+        private const float visualScaleBonus = 1.5f; // sprite grows with the disc
         private const float settleSpeed = 0.5f;
         private const float maxSubstep = 0.3f; // never move more than this per cast step
         private const float deathFallY = -200f; // fell out of the world entirely
+
+        // player-recipe gravity ramp: airborne, force rises linearly with time
+        // since grounded (Gravity.cs: pow(sinceGrounded, exponent)); exponent = 1
+        private float sinceAir;
 
         public float PhysicsRadius()
         {
@@ -727,7 +793,8 @@ namespace DeerootCards.Cards
 
         public void SetScale(float scale)
         {
-            transform.localScale = Vector3.one * Mathf.Clamp(scale * 0.8f, 0.4f, 1.4f);
+            // ×1.5: the heart is a 50% larger physical disc
+            transform.localScale = Vector3.one * Mathf.Clamp(scale * 0.8f * visualScaleBonus, 0.6f, 2.1f);
         }
 
         private void Update()
@@ -757,9 +824,19 @@ namespace DeerootCards.Cards
             {
                 return;
             }
-            // gravity — same source the player's Gravity component uses;
-            // applied as a velocity change per fixed tick (mass-independent)
-            velocity += Vector2.down * ownerGravityForce * Time.fixedDeltaTime * timeScale;
+            // gravity — player recipe (Gravity.cs): the force scales with time
+            // spent airborne (sinceGrounded ramp), starting at ZERO the frame
+            // the leap/throw leaves the floor and rising linearly; grounded
+            // (num <= 0) applies no gravity pull at all.
+            if (!grounded)
+            {
+                sinceAir += Time.fixedDeltaTime * timeScale;
+                velocity += Vector2.down * (ownerGravityForce * sinceAir) * Time.fixedDeltaTime * timeScale;
+            }
+            else
+            {
+                sinceAir = 0f; // grounded: no pull, exactly like the player
+            }
             if (grounded && velocity.magnitude < settleSpeed)
             {
                 velocity = Vector2.zero;
@@ -808,40 +885,29 @@ namespace DeerootCards.Cards
                 Vector2 n = nearest.normal.normalized;
                 transform.position = (Vector3)nearest.point + (Vector3)(n * (radius * transform.localScale.x));
                 float intoNormal = Vector2.Dot(velocity, n);
-                if (intoNormal < 0f)
-                {
-                    // remove the into-surface component, add a small bounce remainder
-                    velocity -= (1f + bounciness) * intoNormal * n;
-                    if (velocity.magnitude > 0.01f)
-                    {
-                        grounded = false;
-                        loggedSettle = false;
-                    }
-                }
-                // surface classification: mostly-upward = floor-like; else fatal
                 float upDot = Vector2.Dot(n, Vector2.up);
                 if (upDot < 0.5f)
                 {
-                    // wall/ceiling hit — the fragile heart (and its owner) dies
-                    HeartWalled(transform.position);
-                    return;
-                }
-                // floor landing: friction-slide then settle
-                if (velocity.magnitude > 0.01f && velocity.magnitude > settleSpeed)
-                {
-                    velocity -= velocity * friction * Time.fixedDeltaTime * timeScale;
-                }
-                if (velocity.magnitude <= settleSpeed)
-                {
-                    if (!loggedSettle)
+                    // wall/ceiling — the fragile heart (and its owner) dies, but
+                    // only on a REAL impact: a barely-moving graze along a
+                    // curved/sloped surface is a spared touch, not a hit.
+                    if (intoNormal < -0.4f)
                     {
-                        loggedSettle = true;
-                        UnityEngine.Debug.Log($"[DEER] Heart landed (floor normal {n}) at {transform.position}");
+                        HeartWalled(transform.position);
+                        return;
                     }
-                    velocity = Vector2.zero;
-                    grounded = true;
-                    break; // resting — no further movement this tick
                 }
+                // floor (or grazing slope) contact: STOP dead — no slide, no
+                // bounce. The heart lands exactly where it touches down.
+                velocity = Vector2.zero;
+                grounded = true;
+                sinceAir = 0f;
+                if (!loggedSettle)
+                {
+                    loggedSettle = true;
+                    UnityEngine.Debug.Log($"[DEER] Heart settled (normal {n}) at {transform.position}");
+                }
+                break; // resting — no further movement this tick
             }
             if (transform.position.y < deathFallY)
             {
