@@ -78,10 +78,14 @@ The game code is already decompiled on the linux drive:
 - `TimeHandler.deltaTime` (static) = `Time.deltaTime × timeScale`, already scaled — use it directly for timers instead of recomputing.
 - `CharacterStatModifiers.ResetStats()` resets movementSpeed/regen/lifeSteal wholesale on round boundaries — temporary stat modify/restore around an ability is safe if restored in the same ability cycle.
 
-## Heart card specifics (verified in-game / decompile)
+## Heart card specifics (HeartCard.cs, decompile-verified; runtime details pending playtest where noted)
 
-- State-transition React idiom: throw → save stats + zero regen/lifesteal + `movementSpeed ×0.75`; restore in `RemoveHeart` (the single choke point every removal path funnels into).
-- Heart-out damage gate: prefix on `DoDamage` returning `false` while the owner's heart is OnGround — owner fully invincible (incl. own bullets). Own lethal finishers need a static bypass flag (`applyingHeartDrain`).
+- Death cleanup MUST hook the death RPCs, not Update: `HealthHandler.RPCA_Die` (:320–341, sets `data.dead` then `SetActive(false)` at :328) and `RPCA_Die_Phoenix` (:344) run locally on every client — postfixes there (`DeathHeartPatch`) re-arm/re-clone deterministically. A dead-check in `HeartEffect.Update` on the player GameObject stops running at death because the GameObject is deactivated.
+- Configurable-ability lifecycle: throw → save `movementSpeed`/`regeneration`/`lifeSteal` originals, zero/add modifiers; restore in `RemoveHeart` (the single choke point every heart-removal path funnels into: heart shot, wall hit, owner death, round reset, card removal).
+- Heart-out damage gate: Harmony prefix on `HealthHandler.DoDamage` returning `false` while the owner's heart is OnGround — owner fully invincible (incl. own bullets). Own lethal finishers pass via a static `applyingHeartDrain` bypass flag; the heart-shot kill flips state off OnGround before calling DoDamage, so the gate naturally lets it through.
+- Heart drain formula (constant per-tick damage): lifetime `L(h) = 20h/(h+100)` s from `maxHealth` sampled at throw; constant `dps = (h+100)/20` (100 hp → 10 hp/s, dead at exactly 10 s; lifetime asymptotically capped at 20 s). Ticks: fixed 0.25 s accumulator with `TimeHandler.deltaTime`, debit `data.health` directly on every client (deterministic replication), lethal `DoDamage` finisher at hp ≤ 0.
+- Heart object: single root entity, ZERO colliders, never on the "Player" layer — players can never physically interact with it at all. Motion is custom kinematic: `velocity` integrated against the owner's `PlayerCollision.mask` via substep `Physics2D.CircleCastAll` (≤0.3 units/step) and a linear gravity ramp `velocity += down × gravityForce × sinceAir × dt` mimicking `Gravity.cs:19–34` (which itself applies force as `down × timeScale × pow(sinceGrounded, exponent) × gravityForce × rig.mass` — the heart integration deliberately drops the `mass`/`timeScale`-power terms and integrates velocity directly). `Physics2D.gravity` is ≈0 in ROUNDS; Rigidbody/gravityScale does nothing.
+- Heart-as-Damagable: the heart GO root inherits `Damagable` with `TakeDamage`/`CallTakeDamage` overridden (routing to the `RPC_HeartShot` kill path), so explosion/AoE damage reaches the kill path; direct bullet detection uses a Harmony postfix on `MoveTransform.Update` (fires on the bullet's exact move-integration frame, incl. its last) with a swept `SegmentTouchesDisc` test against the disc list — same memory-less idiom as the bullet-portal pass.
 
 ## Tooling
 
