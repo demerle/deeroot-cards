@@ -96,6 +96,16 @@ The game code is already decompiled on the linux drive:
 - Custom-effect stacking without AttackLevel: merge in `Awake` — `GetComponents<T>()`, bump the existing sibling's `stacks`, `Destroy(this)`. Works even when both copies are added in the same frame (sibling not yet Started).
 - `PlayerVelocity.velocity` read via cached static `FieldInfo` reflection (internal field; same as the Blink write pattern but cheaper per-frame).
 
+## Bouncy Ball card (BouncyBallCard.cs; v1 identity bug found+fixed, ×3 playtest pending)
+
+- **Knockback-taken chokepoint: `HealthHandler.CallTakeForce` is the networked wrapper for ALL external knockback** — prefix-multiplying its `force` arg scales knockback taken (Bouncy Ball: ×3), and the scaled value rides the vanilla `RPCA_SendTakeForce` Photon RPC (`RpcTarget.All`) to every client, so it syncs with zero custom networking. Callers: `ProjectileHit` (bullets), `Explosion` (incl. own rockets), `DamageBox` hazards, `NetworkPhysicsObject.OnPlayerCollision` (**boxes/props hitting players**), `LineRangeEffect`, `OutOfBoundsHandler` (pit bounce).
+- **Direct `TakeForce` callers bypass the patch on purpose** (holder mobility stays vanilla): jump (`Movement.cs:127`), block self-push (`Block.cs:206`), Shield Charge + DIVE charge loops, Thrusters, Saws, BeamAttack. Blocking still negates knockback — `CallTakeForce`'s `IsBlocking()` gate is untouched by the prefix.
+- `HealthHandler.data` is **private**; resolve the CharacterData in a patch via `__instance.GetComponent<CharacterData>()` (same GameObject — that's exactly how vanilla `HealthHandler.Awake` gets it).
+- **PITFALL (cost us a debug round): `CustomCard.SetupCard` re-runs on every spawned pick-card clone** — UnboundLib's `CustomCard.Awake` calls it, and `Instantiate` copies the component onto each clone. NEVER cache `CardInfo` by instance identity from `SetupCard`: `data.currentCards` stores `CardInfo.sourceCard` (`ApplyCardStats.cs:110`) = the **registered** prefab instance (`CardChoice.cs:333`), not a clone. SetupCard-set **stats still work** because `ApplyCardStats` copies stats off the pick-card clone's own components.
+- Card-ownership check in stat-ish patches: `data.currentCards.Any(c => c != null && c.cardName == CardName)` — `cardName` is identical on registered instances and clones (copied field), so it's immune to the identity problem; vanilla-authoritative state, no effect component, no stack/removal bookkeeping (stack copies don't multiply: flat ×3).
+- Speed stat: `CharacterStatModifiers.movementSpeed` is a plain multiplier copied off cards (default 1) — `1.5f` = +50%. (Unlike `attackSpeedMultiplier`, which is NOT copied off cards — see DON'T above.)
+- Theme enum (`CardThemeColor.CardThemeColorType`) has **no** `NatureGreen` — actual values: `DestructiveRed, FirepowerYellow, DefensiveBlue, TechWhite, EvilPurple, PoisonGreen, NatureBrown, ColdBlue, MagicPink`. Green = `PoisonGreen`.
+
 ## Tooling
 
 - Test logs readable directly at `~/.config/r2modmanPlus-local/ROUNDS/profiles/dev/BepInEx/LogOutput.log` (r2modman dev profile, no need for the user to paste).

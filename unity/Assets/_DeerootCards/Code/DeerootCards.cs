@@ -20,9 +20,11 @@ namespace DeerootCards
             Cards.DeleteCard.Init(); // applies the pick-phase hold patch
             Cards.PortalCard.Init(); // applies the bullet-portal MoveTransform patch
             Cards.HeartCard.Init(); // applies the bullet-heart MoveTransform patch
+            Cards.BouncyBallCard.Init(); // applies the knockback-taken CallTakeForce patch
             CustomCard.BuildCard<OverdriveCard>();
             CustomCard.BuildCard<BlinkCard>();
             CustomCard.BuildCard<DiveCard>();
+            CustomCard.BuildCard<BouncyBallCard>();
             CustomCard.BuildCard<PortalCard>();
             CustomCard.BuildCard<DoubleCard>();
             CustomCard.BuildCard<DeleteCard>();
