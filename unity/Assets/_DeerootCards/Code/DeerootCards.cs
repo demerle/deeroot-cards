@@ -18,6 +18,7 @@ namespace DeerootCards
         {
             UnityEngine.Debug.Log("[DEER] DeerootCards mod loading, building cards...");
             Cards.DeleteCard.Init(); // applies the pick-phase hold patch
+            Cards.PortalCard.Init(); // applies the bullet-portal MoveTransform patch
             CustomCard.BuildCard<OverdriveCard>();
             CustomCard.BuildCard<BlinkCard>();
             CustomCard.BuildCard<PortalCard>();

@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using HarmonyLib;
 using UnityEngine;
 using UnboundLib;
 using UnboundLib.Cards;
@@ -81,6 +82,15 @@ namespace DeerootCards.Cards
         public override string GetModName()
         {
             return DeerootCards.modInitials;
+        }
+
+        // applies the MoveTransform.Update postfix once, at card registration
+        private static bool harmonyApplied;
+        public static void Init()
+        {
+            if (harmonyApplied) return;
+            harmonyApplied = true;
+            new Harmony("com.deeroot.cards.portals").PatchAll(typeof(PortalEffect.BulletPortalPatch));
         }
     }
 
@@ -195,9 +205,227 @@ namespace DeerootCards.Cards
             if (player.data.view.IsMine)
             {
                 SimulateOwner();
+                TouchCheck();
+                // bullet handling runs in the MoveTransform patch, on each
+                // bullet's own update tick — see BulletPortalPatch
             }
-            TouchCheck();
         }
+
+        // ---- bullet portal pass (bullet's own clock) ----
+        private const float bulletExitOffset = 0.4f;
+        // bullet -> (armed, expire). a teleported bullet stays FULLY dormant (no
+        // segment test, no positional test) until a frame passes where its flight
+        // segment touches no portal disc and its position is outside every
+        // radius — then it re-arms. This makes a bounce-back geometrically
+        // impossible: the loop trigger (a still-contacting bullet being tested
+        // again) can't happen, because disarmed bullets are never tested.
+        // Detection itself is memory-less: the flight segment is derived from
+        // the bullet each frame (position - velocity*deltaTime*multiplier, the
+        // exact MoveTransform integration), immune to pooled/reused bullets.
+        private static readonly Dictionary<MoveTransform, (bool armed, float expire)> bulletArmed = new Dictionary<MoveTransform, (bool, float)>();
+
+        // detection runs in a Harmony postfix on MoveTransform.Update: it fires
+        // for every projectile on the exact frame it integrates its move —
+        // including the final frame of a hyper-speed bullet, BEFORE the wall
+        // raycast kills it. Per-frame FindObjectsOfType polling misses those
+        // last-frame crossings entirely (the bullet is dead before our Update
+        // ever samples it), which is why ultra-fast shots sometimes teleported.
+        [HarmonyPatch(typeof(MoveTransform), "Update")]
+        internal static class BulletPortalPatch
+        {
+            [HarmonyPostfix]
+            private static void AfterBulletMove(MoveTransform __instance)
+            {
+                PortalEffect.CheckBullet(__instance);
+            }
+        }
+
+        // lazily built/cached active portal pairs — valid for the current frame
+        private static List<(Vector3 a, Vector3 b)> portalPairsCache;
+        private static int portalPairsFrame = -1;
+
+        private static List<(Vector3 a, Vector3 b)> GetPortalPairs()
+        {
+            if (portalPairsFrame == Time.frameCount && portalPairsCache != null)
+            {
+                return portalPairsCache;
+            }
+            var pairs = new List<(Vector3 a, Vector3 b)>();
+            foreach (var kv in portalPositions)
+            {
+                int owner = kv.Key;
+                if (!portalActive.TryGetValue(owner, out bool[] active) || !(active[0] && active[1]))
+                {
+                    continue;
+                }
+                pairs.Add((kv.Value[0], kv.Value[1]));
+            }
+            portalPairsCache = pairs;
+            portalPairsFrame = Time.frameCount;
+            return pairs;
+        }
+
+        // called from the MoveTransform.Update postfix, once per bullet per frame
+        private static void CheckBullet(MoveTransform mt)
+        {
+            if (!battleOngoing())
+            {
+                return;
+            }
+            // only true projectiles: a bullet/core carries a ProjectileHit;
+            // generic MoveTransform users (UI movers etc.) are skipped.
+            var ph = mt.GetComponent<ProjectileHit>();
+            if (ph == null)
+            {
+                return;
+            }
+            if (portalPairsFrame != Time.frameCount && !HasActivePairs())
+            {
+                return;
+            }
+            var pairs = GetPortalPairs();
+            if (pairs.Count == 0)
+            {
+                return;
+            }
+
+            float now = Time.time;
+            float dt = TimeHandler.deltaTime * mt.multiplier; // exact MoveTransform step length
+
+            if (bulletArmed.TryGetValue(mt, out var entry) && Time.time < entry.expire && !entry.armed)
+            {
+                // FULLY dormant after a teleport: no segment test, no positional
+                // test — anything else lets a slow bullet re-cross the exit disc
+                // the moment it re-arms and ping-pong between portals forever.
+                // It re-arms only in a frame where its flight segment and
+                // position touch NO portal at all; the first clear frame is not
+                // re-tested, so portals behind the bullet can't grab it back.
+                Vector3 dormantPrev = mt.transform.position - mt.velocity * dt;
+                bool contact = false;
+                foreach (var pair in pairs)
+                {
+                    if (SegmentTouchesDisc(dormantPrev, mt.transform.position, pair.a) ||
+                        SegmentTouchesDisc(dormantPrev, mt.transform.position, pair.b) ||
+                        (mt.transform.position - pair.a).sqrMagnitude <= touchRadius * touchRadius ||
+                        (mt.transform.position - pair.b).sqrMagnitude <= touchRadius * touchRadius)
+                    {
+                        contact = true;
+                        break;
+                    }
+                }
+                if (contact)
+                {
+                    bulletArmed[mt] = (false, now + 1f);
+                    UnityEngine.Debug.Log($"[DEER] Bullet dormant (still touching a portal disc) at {mt.transform.position}");
+                    return;
+                }
+                bulletArmed[mt] = (true, now + 1f); // re-armed; skip this frame entirely
+                return;
+            }
+
+            // self-contained flight segment: MoveTransform integrates
+            // `velocity * deltaTime * multiplier` each frame (deltaTime =
+            // TimeHandler.deltaTime * simulationSpeed, which is ~1 here), so
+            // working backwards from the current position reconstructs this
+            // frame's flight path without any cross-frame bookkeeping.
+            Vector3 prev = mt.transform.position - mt.velocity * dt;
+
+            foreach (var pair in pairs)
+            {
+                // swept test: teleport if the flight segment crossed the disc
+                // this frame; position test retained as fallback for bullets
+                // that spawn inside a portal at point-blank range
+                if (SegmentTouchesDisc(prev, mt.transform.position, pair.a) ||
+                    (mt.transform.position - pair.a).sqrMagnitude <= touchRadius * touchRadius)
+                {
+                    TeleportBullet(mt, pair.b);
+                    return;
+                }
+                if (SegmentTouchesDisc(prev, mt.transform.position, pair.b) ||
+                    (mt.transform.position - pair.b).sqrMagnitude <= touchRadius * touchRadius)
+                {
+                    TeleportBullet(mt, pair.a);
+                    return;
+                }
+            }
+            bulletArmed[mt] = (true, now + 1f);
+
+            // prune stale entries (dead bullets, cleared portals) — once per frame
+            if (Time.frameCount != lastPruneFrame)
+            {
+                lastPruneFrame = Time.frameCount;
+                var stale = new List<MoveTransform>();
+                foreach (var kv in bulletArmed)
+                {
+                    if (kv.Key == null || Time.time >= kv.Value.expire)
+                    {
+                        stale.Add(kv.Key);
+                    }
+                }
+                foreach (var s in stale)
+                {
+                    bulletArmed.Remove(s);
+                }
+            }
+        }
+
+        private static int lastPruneFrame = -1;
+
+        private static bool HasActivePairs()
+        {
+            foreach (var kv in portalPositions)
+            {
+                if (portalActive.TryGetValue(kv.Key, out bool[] active) && active[0] && active[1])
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // closest-point-on-segment distance test: does the flight segment
+        // prev->cur pass within touchRadius of the portal center? Equivalent
+        // to Physics2D.RaycastAll-style swept collision (RayCastTrail's own
+        // anti-tunneling recipe), just refactored to a disc.
+        private static bool SegmentTouchesDisc(Vector3 prev, Vector3 cur, Vector3 center)
+        {
+            Vector3 seg = cur - prev;
+            float lenSqr = seg.sqrMagnitude;
+            if (lenSqr < 0.000001f)
+            {
+                return false; // no movement — positional fallback handles it
+            }
+            float t = Vector3.Dot(center - prev, seg) / lenSqr;
+            t = Mathf.Clamp01(t); // clamp keeps portals behind the flight path dormant
+            Vector3 closest = prev + seg * t;
+            return (closest - center).sqrMagnitude <= touchRadius * touchRadius;
+        }
+
+        private static void TeleportBullet(MoveTransform mt, Vector3 dest)
+        {
+            // keep momentum: leave MoveTransform.velocity alone, offset exit forward
+            // so the bullet doesn't overlap geometry right behind the ring.
+            Vector3 exit = dest + mt.velocity.normalized * bulletExitOffset;
+            exit.z = 0f;
+            mt.transform.root.position = exit;
+            // Critical: RayCastTrail raycasts lastPos -> current each frame; without
+            // snapping lastPos the bullet "travels" the whole gap along the span ray
+            // and explodes on any wall in between. MoveRay() is the public vanilla hook.
+            var trail = mt.GetComponentInParent<RayCastTrail>();
+            if (trail != null)
+            {
+                trail.MoveRay();
+            }
+            bulletArmed[mt] = (false, Time.time + 1f);
+            UnityEngine.Debug.Log($"[DEER] Bullet teleported to {exit}, velocity {mt.velocity} (speed {mt.velocity.magnitude:F1})");
+        }
+
+        private static bool battleOngoing()
+        {
+            return GameManager.instance.battleOngoing && TimeHandler.timeScale > 0f;
+        }
+
+
 
         private void SimulateOwner()
         {
