@@ -67,7 +67,7 @@ namespace DeerootCards.Cards
 
         protected override string GetDescription()
         {
-            return "Slick and springy. Zoom around the arena — but every hit sends you flying.";
+            return "Move like a monkey at the cost of getting tossed around like a ball";
         }
 
         protected override CardInfoStat[] GetStats()
