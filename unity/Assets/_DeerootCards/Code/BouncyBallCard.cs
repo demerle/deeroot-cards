@@ -6,7 +6,7 @@ using UnboundLib.Cards;
 namespace DeerootCards.Cards
 {
     /// <summary>
-    /// Bouncy Ball: +50% movement speed, but you take triple knockback from
+    /// Bouncy Ball: +50% movement speed, but you take double knockback from
     /// everything that hits you (bullets, explosions, boxes, hazards).
     /// </summary>
     public class BouncyBallCard : CustomCard
@@ -20,8 +20,8 @@ namespace DeerootCards.Cards
         // Per-source knockback multipliers (separation of concerns):
         // the funnel patch (CallTakeForce) applies whichever multiplier the
         // source stamps announce; sources that never announce get Default.
-        internal const float DefaultMultiplier = 3f;     // explosions, boxes, damage boxes, line attacks
-        internal const float BulletMultiplier = 4f;      // ProjectileHit.RPCA_DoHit
+        internal const float DefaultMultiplier = 2f;     // explosions, boxes, damage boxes, line attacks, bullets (no stamp)
+        internal const float BulletMultiplier = 2f;      // ProjectileHit.RPCA_DoHit (matches default)
         internal const float OutOfBoundsMultiplier = 2f; // OutOfBoundsHandler.LateUpdate bounce
 
         // Handoff between source stamps and the funnel patch (0 / "default" = none active).
@@ -85,7 +85,7 @@ namespace DeerootCards.Cards
                 {
                     positive = false,
                     stat = "Knockback taken",
-                    amount = "Triple",
+                    amount = "Double",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 }
             };
@@ -126,7 +126,7 @@ namespace DeerootCards.Cards
     ///
     /// Multiplier comes from BouncyBallCard.SourceMultiplier, set by the source
     /// stamps in BouncyBallSourcePatch around their CallTakeForce window:
-    /// bullets ×4, out-of-bounds bounce ×2, everything else ×3.
+    /// everything ×2 (bullet stamp matches Default, kept for easy retuning).
     ///
     /// Deliberately NOT affected (they call TakeForce directly, skipping
     /// CallTakeForce): the holder's jump, block self-push, Shield Charge and
