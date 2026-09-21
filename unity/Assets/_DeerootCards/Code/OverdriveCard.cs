@@ -50,6 +50,13 @@ namespace DeerootCards.Cards
                     amount = "+50%",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 },
+                new CardInfoStat
+                {
+                    positive = false,
+                    stat = "Movement speed",
+                    amount = "-25%",
+                    simepleAmount = CardInfoStat.SimpleAmount.Some
+                },
             };
         }
 
