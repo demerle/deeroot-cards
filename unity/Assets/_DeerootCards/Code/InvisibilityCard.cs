@@ -152,7 +152,6 @@ namespace DeerootCards.Cards
         private float cooldownLeft;
         private bool active;
         private float remaining;
-        private bool dumpedOnce;
         private readonly List<Renderer> hiddenRenderers = new List<Renderer>();
         private readonly List<Canvas> hiddenCanvases = new List<Canvas>();
         private readonly List<SFPolygon> hiddenPolys = new List<SFPolygon>();
@@ -273,11 +272,6 @@ namespace DeerootCards.Cards
         /// </summary>
         private void Trigger()
         {
-            if (!dumpedOnce)
-            {
-                dumpedOnce = true;
-                LogTreeDump();
-            }
             active = true;
             remaining = Duration;
             HideSweep();
@@ -440,36 +434,6 @@ namespace DeerootCards.Cards
             hiddenCanvases.Clear();
             hiddenPolys.Clear();
             active = false;
-        }
-
-        // Temporary [DEER] diagnostic: full transform tree with component types,
-        // so we can see exactly what the player and gun subtrees contain (esp.
-        // Canvases) and confirm nothing visible escapes the sweep. Strip with the
-        // batch.
-        private void LogTreeDump()
-        {
-            foreach (Transform root in SweepRoots())
-            {
-                UnityEngine.Debug.Log($"[DEER] Invisibility tree dump for '{root.name}' (player {player.playerID}):");
-                foreach (Transform t in root.GetComponentsInChildren<Transform>(true))
-                {
-                    Component[] comps = t.GetComponents<Component>();
-                    string[] typeNames = new string[comps.Length];
-                    for (int i = 0; i < comps.Length; i++)
-                    {
-                        typeNames[i] = comps[i] == null ? "<missing>" : comps[i].GetType().Name;
-                    }
-                    int depth = 0;
-                    Transform p = t.parent;
-                    while (p != null && p != root)
-                    {
-                        depth++;
-                        p = p.parent;
-                    }
-                    string indent = new string(' ', depth * 2);
-                    UnityEngine.Debug.Log($"[DEER]   {indent}{t.name} (active:{t.gameObject.activeInHierarchy}) [{string.Join(", ", typeNames)}]");
-                }
-            }
         }
 
         // ---- round reset (same hook set as Portal): force-restore anything
