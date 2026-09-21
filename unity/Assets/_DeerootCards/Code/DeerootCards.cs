@@ -21,6 +21,7 @@ namespace DeerootCards
             Cards.PortalCard.Init(); // applies the bullet-portal MoveTransform patch
             Cards.HeartCard.Init(); // applies the bullet-heart MoveTransform patch
             Cards.BouncyBallCard.Init(); // applies the knockback-taken CallTakeForce patch
+            Cards.SovereignCard.Init(); // applies the Sovereign friendly-fire gates
             CustomCard.BuildCard<OverdriveCard>();
             CustomCard.BuildCard<BlinkCard>();
             CustomCard.BuildCard<DiveCard>();
@@ -29,6 +30,7 @@ namespace DeerootCards
             CustomCard.BuildCard<DoubleCard>();
             CustomCard.BuildCard<DeleteCard>();
             CustomCard.BuildCard<HeartCard>();
+            CustomCard.BuildCard<SovereignCard>();
         }
 
         void Start()
