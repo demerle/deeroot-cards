@@ -23,6 +23,7 @@ namespace DeerootCards
             Cards.BouncyBallCard.Init(); // applies the knockback-taken CallTakeForce patch
             Cards.SovereignCard.Init(); // applies the Sovereign friendly-fire gates
             Cards.DynamicFieldCard.Init(); // no patches — vanilla block event drives the field
+            Cards.FullCounterCard.Init(); // doubles damage inside Block.blocked, including own bullets
             CustomCard.BuildCard<OverdriveCard>();
             CustomCard.BuildCard<BlinkCard>();
             CustomCard.BuildCard<DiveCard>();
@@ -34,6 +35,7 @@ namespace DeerootCards
             CustomCard.BuildCard<SovereignCard>();
             CustomCard.BuildCard<DynamicFieldCard>();
             CustomCard.BuildCard<InvisibilityCard>();
+            CustomCard.BuildCard<FullCounterCard>();
         }
 
         void Start()

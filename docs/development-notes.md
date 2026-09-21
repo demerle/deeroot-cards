@@ -140,6 +140,14 @@ The game code is already decompiled on the linux drive:
 - Caveats (verify in playtest): extraction failure (CardChoice missing / no SpawnObjects on the vanilla card) logs loudly and results in a no-op block — check `[DEER] DynamicField:` logs first; vanilla stack semantics = multiple independent follow-fields, untested; RWF damage attribution inherits whatever vanilla TeamColor/SpawnedAttack wiring does (TDM watch-item).
 - `[DEER]` logs present: strip together with the Sovereign/BouncyBall/AbilityHud/Dive batch after playtest.
 
+## Full Counter card (FullCounterCard.cs; compiled clean, runtime playtest pending)
+
+- **DON'T hook `Block.BlockProjectileAction` (or a `BlockEffect.DoBlockedProjectile`) to modify a blocked bullet.** Vanilla `Block.blocked` reverses velocity for every blocked projectile, THEN skips `BlockProjectileAction` when `SpawnedAttack.spawner.gameObject == transform.root` (`Block.cs`). That is exactly "enemy bullets double, my own bullet shot into the air and blocked does not." The reflect already happened; only the callback was withheld.
+- **DO postfix `Block.blocked` and multiply `ProjectileHit.damage` (and `shake`) there.** `blocked` is the reflect itself and does not discriminate. It runs on every client because `ProjectileHit.RPCA_DoHit` (`RpcTarget.All`, `wasBlocked`) calls `Block.DoBlock` → `blocked`. Damage is a local field (`SyncProjectile` syncs pos/vel only), so the multiply needs no RPC and stays aligned, including on the bullet owner who has `hasControl` and actually applies the hit.
+- Own-bullet block is otherwise vanilla: `RayCastTrail` ignores same `teamID` for 0.2s after spawn, `ProjectileHit.Start` holds the owner in `playersHit` for `holdPlayerFor` (0.5s). After that a bullet you fired can be blocked, and `blocked` already reverses it. `WasBlocked()` sets `timeAtSpawn = 0` so the post-reflect bullet can hit anyone, including you, once the 0.5s hold expires.
+- Stacks multiply (`2^stacks`). Template `allowMultiple` is 0, so a normal pick is exactly ×2. Log line tags `OWN` vs `foreign` using the same spawner comparison vanilla uses to skip the callback — the OWN line is the playtest gate.
+- Do not also scale `transform.localScale` on the bullet: `ProjectileHit.Start` does `damage *= localScale.x`, so a scale bump before Start double-applies.
+
 ## Tooling
 
 - Test logs readable directly at `~/.config/r2modmanPlus-local/ROUNDS/profiles/dev/BepInEx/LogOutput.log` (r2modman dev profile, no need for the user to paste).
