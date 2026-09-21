@@ -33,6 +33,7 @@ namespace DeerootCards
             CustomCard.BuildCard<HeartCard>();
             CustomCard.BuildCard<SovereignCard>();
             CustomCard.BuildCard<DynamicFieldCard>();
+            CustomCard.BuildCard<InvisibilityCard>();
         }
 
         void Start()
