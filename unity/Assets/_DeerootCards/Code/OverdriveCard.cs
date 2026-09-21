@@ -39,7 +39,8 @@ namespace DeerootCards.Cards
 
         protected override string GetDescription()
         {
-            return "Your weapon operates well past its limits — at the cost of your other abilities.";
+            // No description line — stats block only.
+            return "";
         }
 
         protected override CardInfoStat[] GetStats()
@@ -49,14 +50,14 @@ namespace DeerootCards.Cards
                 new CardInfoStat
                 {
                     positive = true,
-                    stat = "Attack speed",
+                    stat = "Attack Speed",
                     amount = "+35%",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 },
                 new CardInfoStat
                 {
                     positive = false,
-                    stat = "Ability cooldowns",
+                    stat = "All Ability Cooldowns",
                     amount = "+25%",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 },

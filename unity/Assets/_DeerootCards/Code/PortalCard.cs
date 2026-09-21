@@ -56,7 +56,7 @@ namespace DeerootCards.Cards
 
         protected override string GetDescription()
         {
-            return "Control two connected portals like an absolute gamer.";
+            return "Ability Card: Control two connected portals like an absolute gamer.";
         }
 
         protected override CardInfoStat[] GetStats()

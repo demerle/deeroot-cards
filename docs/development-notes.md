@@ -172,7 +172,7 @@ The game code is already decompiled on the linux drive:
 
 - Double consumed on a per-player-unique pick (`!added.allowMultiple`): no duplicate copy; Double applies a bonus card via the existing `RPCA_DoubleApply(name)` channel instead — "Ability Up" (-25% all ability cooldowns) for this mod's ability cards, "Power Up" (+25% damage, `gun.damage *= 1.25f`) for everything else (vanilla/other-mod uniques included). Classification: `DoubleCard.IsAbilityCard` — static HashSet by exact cardName ("Portals", "Heart", "Invisibility", "Shambles", "Blink", "Sovereign"); keep it in sync with new ability cards.
 - "Ability Up" is deck-driven only (no SetupCard stats): an entry in `AbilityCooldowns.Sources` ("Ability Up", -0.25) — stacking/removal handled by the deck-scan; `Apply()` floors the total multiplier at ×0.1 so cooldowns never hit zero.
-- Bonus cards never appear in random pick offers: Harmony postfix on `CardChoice.GetRanomCard` (the single source of random offers) re-rolls away the names; direct RPC application is unaffected. Patch applied via `BonusCards.Init()` in DeerootCards Awake; both cards built with `CustomCard.BuildCard`.
+- Bonus cards ARE in the normal pick pool (Uncommon) — the earlier GetRanomCard hide-patch was removed per design change. Bonus cards have NO description text (empty GetDescription → `cardDestription = ""`), as does Quick Attack (OverdriveCard).
 
 ## Tooling
 

@@ -85,7 +85,7 @@ namespace DeerootCards.Cards
 
         protected override string GetDescription()
         {
-            return "Vanish into the wind";
+            return "Ability Card: Vanish into the wind";
         }
 
         protected override CardInfoStat[] GetStats()
@@ -102,7 +102,7 @@ namespace DeerootCards.Cards
                 new CardInfoStat
                 {
                     positive = false,
-                    stat = "Cooldown",
+                    stat = "Ability Cooldown",
                     amount = "10 seconds",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 },

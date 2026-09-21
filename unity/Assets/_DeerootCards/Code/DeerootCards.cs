@@ -24,7 +24,6 @@ namespace DeerootCards
             Cards.SovereignCard.Init(); // applies the Sovereign friendly-fire gates
             Cards.DynamicFieldCard.Init(); // no patches — vanilla block event drives the field
             Cards.FullCounterCard.Init(); // doubles damage inside Block.blocked, including own bullets
-            Cards.BonusCards.Init(); // keeps Ability Up / Power Up out of random pick offers
             CustomCard.BuildCard<OverdriveCard>();
             CustomCard.BuildCard<BlinkCard>();
             CustomCard.BuildCard<DiveCard>();
