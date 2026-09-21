@@ -158,6 +158,15 @@ The game code is already decompiled on the linux drive:
 - Migrated: InvisibilityEffect (base 10s) and PortalEffect placement (base 2.5s). Heart card NOT migrated (out of scope for now). Block cooldown (`cdAdd`/`cdMultiplier`) untouched.
 - Known playtest gates: Invisibility + Quick Attack → 12.5s; Portals + Quick Attack → 3.125s; Delete Quick Attack mid-match → back to base on the next trigger.
 
+## Shambles card (ShamblesCard.cs; compiled clean, runtime playtest pending)
+
+- F-key (P2: G) cursor-targeted swap with the nearest "item": any player (any team, alive) or any in-flight `MoveTransform`+`ProjectileHit` bullet. Nearest candidate center to cursor world pos wins; no candidates → no-op with NO cooldown burn. Zero Harmony patches — pure input + one broadcast `UnboundRPC` (`RPC_ShamblesSwap(casterID, otherPlayerID, bulletViewID, targetPos, casterOldPos)`).
+- **Bullet targeting addresses the PhotonView**: bullets are `PhotonNetwork.Instantiate`d so they carry a valid `PhotonView.ViewID` — cast-time snapshot passes `ph.view.ViewID` (fallback `GetComponent<PhotonView>`), RPC resolves `PhotonNetwork.GetPhotonView(viewID)` (same API Sovereign uses). Bullet dies before RPC arrives → `GetPhotonView` null → caster teleports anyway, log sonde.
+- **Bullet momentum preserved by construction**: TeleportBullet touches ONLY the transform (+ critical `RayCastTrail.MoveRay()` snap per the portal pitfall) and never reads/writes `MoveTransform.velocity`. No `bulletArmed`-style disarm state needed — Shambles only moves a bullet on an explicit keypress, so the portal ping-pong hazard doesn't apply.
+- Player-side swap = vanilla Teleport recipe × 2 (caster to target spot, target/other to caster's OLD spot as seen by the caster; both velocities zeroed). Positions travel IN the RPC so all clients write identical values — no divergence from network lag.
+- Bullet post-swap continuation: an enemy bullet swapped to your old spot keeps flying along its original direction past it; `holdPlayerFor`/`playersHit` self-hit interactions with own bullets are a playtest gate.
+- HUD: AbilityHUD recipe, orange ready / dark gray cooldown, key caption + 6s countdown (`BaseCooldown` consumed via `AbilityCooldowns.Apply`).
+
 ## Tooling
 
 - Test logs readable directly at `~/.config/r2modmanPlus-local/ROUNDS/profiles/dev/BepInEx/LogOutput.log` (r2modman dev profile, no need for the user to paste).

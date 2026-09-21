@@ -36,6 +36,7 @@ namespace DeerootCards
             CustomCard.BuildCard<DynamicFieldCard>();
             CustomCard.BuildCard<InvisibilityCard>();
             CustomCard.BuildCard<FullCounterCard>();
+            CustomCard.BuildCard<ShamblesCard>();
         }
 
         void Start()
