@@ -47,6 +47,7 @@ namespace DeerootCards.Cards
             harmonyApplied = true;
             var harmony = new Harmony("com.deeroot.cards.sovereign");
             harmony.PatchAll(typeof(SovereignFriendlyFirePatch));
+            harmony.PatchAll(typeof(SovereignBotBulletPatch));
             SovereignBot.RegisterRoundResetHooks();
         }
 
@@ -235,6 +236,11 @@ namespace DeerootCards.Cards
         {
             public CharacterData Bot;
             public int MasterPlayerID;
+            // For the bullet-shooter redirect (SovereignBotBulletPatch): the
+            // bot's own view id (sentinel decode key) and the master's Photon
+            // actor number (fallback when a bot dies with bullets in flight).
+            public int BotViewID;
+            public int MasterActorNr;
         }
 
         private static readonly List<BotEntry> bots = new List<BotEntry>();
@@ -430,7 +436,13 @@ namespace DeerootCards.Cards
 
             if (bots.All(e => e.Bot != bot))
             {
-                bots.Add(new BotEntry { Bot = bot, MasterPlayerID = masterPlayerID });
+                bots.Add(new BotEntry
+                {
+                    Bot = bot,
+                    MasterPlayerID = masterPlayerID,
+                    BotViewID = botViewID,
+                    MasterActorNr = master.data.view.OwnerActorNr,
+                });
             }
             if (view.IsMine)
             {
@@ -582,6 +594,34 @@ namespace DeerootCards.Cards
         internal static bool IsBot(Player p)
         {
             return p != null && p.data != null && bots.Any(e => e.Bot != null && e.Bot.player == p);
+        }
+
+        internal static bool IsBotData(CharacterData data)
+        {
+            return data != null && bots.Any(e => e.Bot == data);
+        }
+
+        /// <summary>
+        /// Sentinel decode: viewID → the bot's CharacterData, but ONLY while its
+        /// registry entry still exists (a despawned bot's clone may linger a
+        /// frame — its half-destroyed gun must not receive BulletInit).
+        /// </summary>
+        internal static CharacterData ResolveBotByViewID(int viewID)
+        {
+            var view = PhotonNetwork.GetPhotonView(viewID);
+            if (view == null)
+            {
+                return null;
+            }
+            var data = view.GetComponent<CharacterData>();
+            return IsBotData(data) ? data : null;
+        }
+
+        /// <summary>Master's Photon actor number for a bot view, or -1 if the bot is gone.</summary>
+        internal static int GetMasterActorNrForBotView(int botViewID)
+        {
+            var entry = bots.FirstOrDefault(e => e.BotViewID == botViewID);
+            return entry?.MasterActorNr ?? -1;
         }
     }
 
@@ -831,6 +871,163 @@ namespace DeerootCards.Cards
                 return false;
             }
             return true;
+        }
+    }
+
+    /// <summary>
+    /// Bullet-shooter redirect — closes the LAST master→bot leak.
+    ///
+    /// ROUNDS initializes every spawned bullet from the gun of whichever
+    /// REGISTERED player owns the shooter's actor number: Gun.FireBurst raises
+    /// RPCA_Init with holdable.holder.view.OwnerActorNr (Gun.cs:495) and
+    /// ProjectileInit.RPCA_Init resolves GetPlayerWithActorID(senderID) and
+    /// calls THAT player's gun.BulletInit (ProjectileInit.cs:11). Our bot's
+    /// view is owned by the master's client, so bot bullets were initialized
+    /// from the MASTER's gun: his damage, his projectile speed, and his
+    /// gun.objectsToSpawn — which is how the poison card's RayHitPoison object
+    /// got stapled onto bot bullets (BulletInit → ApplyProjectileStats,
+    /// Gun.cs:617-628 instantiates objectsToSpawn as bullet children).
+    ///
+    /// Fix: tag the bot's bullet-init RPCs with a sentinel shooter id and
+    /// decode them back to the bot on every client:
+    ///   1. Gun.Attack prefix — bot guns set pendingBotShooter. Safe because
+    ///      the whole spawn path runs synchronously inside Attack (FireBurst
+    ///      yields only AFTER the spawn loops, Gun.cs:529, and the bot kit is
+    ///      bursts=0/uncharged → exactly one synchronous burst).
+    ///   2. PhotonView.RPC prefix — while the flag is up, rewrite senderID
+    ///      (parameters[0]) of RPCA_Init* to -botViewID. Photon actor numbers
+    ///      are always positive, so the sentinel is unambiguous, and it rides
+    ///      the EXISTING init RPC to every client — no extra traffic, no
+    ///      arrival-order race.
+    ///   3. ProjectileInit.RPCA_Init prefix — negative id → resolve the bot's
+    ///      view → BulletInit on the BOT's gun (public method), skip vanilla.
+    ///      Stale sentinel (bot died mid-flight) → fall back to the master's
+    ///      actor number, i.e. pre-patch behavior for orphan bullets.
+    ///   4. OFFLINE_Init prefix — offline mode raises no RPC; the direct call
+    ///      still happens inside the Attack window, so the flag works there.
+    ///
+    /// CONSTRAINT: BotBursts must stay 0 — bursts > 1 yield between shots,
+    /// which would clear the flag before later burst bullets spawn.
+    /// </summary>
+    [HarmonyPatch]
+    internal static class SovereignBotBulletPatch
+    {
+        private const string InitRpcName = "RPCA_Init";
+        private const string InitNoAmmoRpcName = "RPCA_Init_noAmmoUse";
+
+        /// <summary>The bot firing right now — valid only inside its Gun.Attack window.</summary>
+        private static CharacterData pendingBotShooter;
+
+        // --- 1. mark the shooter while a bot's Attack is on the stack -------
+
+        [HarmonyPatch(typeof(Gun), nameof(Gun.Attack))]
+        [HarmonyPrefix]
+        static void MarkBotShooter(Gun __instance)
+        {
+            var holder = __instance.holdable != null ? __instance.holdable.holder : null;
+            if (holder != null && SovereignBot.IsBotData(holder))
+            {
+                pendingBotShooter = holder;
+            }
+        }
+
+        [HarmonyPatch(typeof(Gun), nameof(Gun.Attack))]
+        [HarmonyFinalizer]
+        static System.Exception UnmarkBotShooter()
+        {
+            pendingBotShooter = null;
+            return null; // never swallow exceptions — just clear the flag
+        }
+
+        // --- 2. sentinel-encode the init RPC at raise time -------------------
+
+        [HarmonyPatch(typeof(PhotonView), nameof(PhotonView.RPC),
+            new[] { typeof(string), typeof(RpcTarget), typeof(object[]) })]
+        [HarmonyPrefix]
+        static void EncodeSentinel(PhotonView __instance, string methodName, object[] parameters)
+        {
+            if (pendingBotShooter == null || parameters == null || parameters.Length == 0)
+            {
+                return;
+            }
+            if (methodName != InitRpcName && methodName != InitNoAmmoRpcName)
+            {
+                return;
+            }
+            if (__instance == pendingBotShooter.view)
+            {
+                return; // paranoia: never touch RPCs raised on the bot's own view
+            }
+            parameters[0] = -pendingBotShooter.view.ViewID;
+        }
+
+        // --- 3. decode on every client ---------------------------------------
+
+        [HarmonyPatch(typeof(ProjectileInit), InitRpcName)]
+        [HarmonyPrefix]
+        static bool DecodeInit(ProjectileInit __instance, ref int senderID, int nrOfProj, float dmgM, float randomSeed)
+        {
+            return DecodeBotBullet(__instance, ref senderID, nrOfProj, dmgM, randomSeed, useAmmo: true);
+        }
+
+        [HarmonyPatch(typeof(ProjectileInit), InitNoAmmoRpcName)]
+        [HarmonyPrefix]
+        static bool DecodeInitNoAmmo(ProjectileInit __instance, ref int senderID, int nrOfProj, float dmgM, float randomSeed)
+        {
+            return DecodeBotBullet(__instance, ref senderID, nrOfProj, dmgM, randomSeed, useAmmo: false);
+        }
+
+        // --- 4. offline path (no RPC — direct call inside the Attack window) --
+
+        [HarmonyPatch(typeof(ProjectileInit), "OFFLINE_Init")]
+        [HarmonyPrefix]
+        static bool DecodeOfflineInit(ProjectileInit __instance, int nrOfProj, float dmgM, float randomSeed)
+        {
+            return InitBotBullet(__instance, nrOfProj, dmgM, randomSeed, useAmmo: true);
+        }
+
+        [HarmonyPatch(typeof(ProjectileInit), "OFFLINE_Init_noAmmoUse")]
+        [HarmonyPrefix]
+        static bool DecodeOfflineInitNoAmmo(ProjectileInit __instance, int nrOfProj, float dmgM, float randomSeed)
+        {
+            return InitBotBullet(__instance, nrOfProj, dmgM, randomSeed, useAmmo: false);
+        }
+
+        private static bool DecodeBotBullet(ProjectileInit __instance, ref int senderID, int nrOfProj, float dmgM, float randomSeed, bool useAmmo)
+        {
+            if (senderID >= 0)
+            {
+                return true; // a normal player's bullet — vanilla path
+            }
+
+            var bot = SovereignBot.ResolveBotByViewID(-senderID);
+            if (bot != null && bot.weaponHandler != null && bot.weaponHandler.gun != null)
+            {
+                bot.weaponHandler.gun.BulletInit(__instance.gameObject, nrOfProj, dmgM, randomSeed, useAmmo);
+                UnityEngine.Debug.Log($"[DEER] Sovereign: bot bullet init from BOT gun (damage {bot.weaponHandler.gun.damage}, objectsToSpawn {bot.weaponHandler.gun.objectsToSpawn.Length})");
+                return false;
+            }
+
+            // Stale sentinel: the bot died while its bullet was in flight.
+            // Fall back to the master's actor — pre-patch behavior for orphans.
+            var masterActor = SovereignBot.GetMasterActorNrForBotView(-senderID);
+            if (masterActor > 0)
+            {
+                senderID = masterActor;
+                return true;
+            }
+            return false; // nothing left to resolve against — leave the bullet vanilla-default
+        }
+
+        private static bool InitBotBullet(ProjectileInit __instance, int nrOfProj, float dmgM, float randomSeed, bool useAmmo)
+        {
+            var bot = pendingBotShooter;
+            if (bot == null || bot.weaponHandler == null || bot.weaponHandler.gun == null)
+            {
+                return true;
+            }
+            bot.weaponHandler.gun.BulletInit(__instance.gameObject, nrOfProj, dmgM, randomSeed, useAmmo);
+            return false;
         }
     }
 }
