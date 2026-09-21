@@ -22,6 +22,7 @@ namespace DeerootCards
             Cards.HeartCard.Init(); // applies the bullet-heart MoveTransform patch
             Cards.BouncyBallCard.Init(); // applies the knockback-taken CallTakeForce patch
             Cards.SovereignCard.Init(); // applies the Sovereign friendly-fire gates
+            Cards.SimulacrumCard.Init(); // applies the Simulacrum friendly-fire gates
             Cards.DynamicFieldCard.Init(); // no patches — vanilla block event drives the field
             Cards.FullCounterCard.Init(); // doubles damage inside Block.blocked, including own bullets
             CustomCard.BuildCard<OverdriveCard>();
@@ -33,6 +34,7 @@ namespace DeerootCards
             CustomCard.BuildCard<DeleteCard>();
             CustomCard.BuildCard<HeartCard>();
             CustomCard.BuildCard<SovereignCard>();
+            CustomCard.BuildCard<SimulacrumCard>();
             CustomCard.BuildCard<DynamicFieldCard>();
             CustomCard.BuildCard<InvisibilityCard>();
             CustomCard.BuildCard<FullCounterCard>();
