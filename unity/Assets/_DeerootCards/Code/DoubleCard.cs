@@ -117,7 +117,8 @@ namespace DeerootCards.Cards
         private Player player;
 
         private int lastCount = -1; // -1 until Start() snapshots
-        private bool pendingDouble;
+        private int pendingStacks; // 0 = none; 1 = "receive 2 of the next card"; each extra Double doubles it (2 = receive 4, 3 = receive 8...)
+        private bool armAckPending; // set by ArmPending (OnAddCard); consumed by the next Update detection of that same Double so it is not multiplied twice
         private int applyingCount = -1; // expected currentCards.Count right after our own duplicate application
 
         public void SetPlayer(Player player)
@@ -127,7 +128,14 @@ namespace DeerootCards.Cards
 
         public void ArmPending()
         {
-            pendingDouble = true;
+            // Stacking: picking a Double while one is already pending doubles
+            // the multiplier instead of overwriting it — 1 pending (receive 2),
+            // 2 pending (receive 4), 3 pending (receive 8), and so on.
+            pendingStacks = (pendingStacks == 0) ? 1 : pendingStacks * 2;
+            // OnAddCard and the Update deck-scan both see this same Double land;
+            // without this ack the card would be multiplied twice per pick
+            // (observed: two Doubles -> pendingStacks 4 instead of 2 -> 5 cards).
+            armAckPending = true;
         }
 
         private void Start()
@@ -138,7 +146,7 @@ namespace DeerootCards.Cards
             }
             // Snapshot AFTER the card's own application has landed (Start runs next frame).
             lastCount = player.data.currentCards.Count;
-            UnityEngine.Debug.Log($"[DEER] DoubleEffect started on {player.data.name}, cards={lastCount}, pending={pendingDouble}");
+            UnityEngine.Debug.Log($"[DEER] DoubleEffect started on {player.data.name}, cards={lastCount}, pendingStacks={pendingStacks}");
         }
 
         private void Update()
@@ -168,9 +176,21 @@ namespace DeerootCards.Cards
 
                 if (added.cardName == DoubleCard.CardName)
                 {
-                    // A Double card is never doubled itself (no exponential chains);
-                    // it arms the pending flag for the card after it.
-                    pendingDouble = true;
+                    if (armAckPending)
+                    {
+                        // This is the Double OnAddCard already armed — acknowledge
+                        // it instead of multiplying a second time.
+                        armAckPending = false;
+                        UnityEngine.Debug.Log($"[DEER] Double arm acknowledged (no re-multiply), pendingStacks={pendingStacks}");
+                    }
+                    else
+                    {
+                        // Double arrived without an OnAddCard arm (e.g. removal
+                        // rebuild re-add, where OnAddCard was swallowed by the
+                        // RebuildGuard) — arm it here instead.
+                        pendingStacks = (pendingStacks == 0) ? 1 : pendingStacks * 2;
+                        UnityEngine.Debug.Log($"[DEER] Double armed via deck-scan — pendingStacks={pendingStacks}");
+                    }
                     continue;
                 }
 
@@ -181,59 +201,78 @@ namespace DeerootCards.Cards
                     continue;
                 }
 
-                if (pendingDouble && !added.allowMultiple)
+                if (pendingStacks > 0 && !added.allowMultiple)
                 {
-                    // Per-player unique card: no duplicate copy — compensate instead.
-                    // The unique card itself already applied (vanilla pick flow);
-                    // Double's payout becomes a bonus card: "Ability Up" for our
-                    // ability cards, "Power Up" (+25% damage) for everything else
-                    // (including vanilla uniques). Double is consumed, exactly as
-                    // if it had fired on a normal card.
-                    pendingDouble = false;
+                    // Per-player unique card: no duplicate copies — compensate
+                    // instead. The unique card itself already applied (vanilla
+                    // pick flow); Double's payout becomes copies of a bonus
+                    // card: "Ability Up" for our ability cards, "Power Up"
+                    // (+25% damage) for everything else (vanilla uniques
+                    // included). One bonus copy per missed duplicate, so a
+                    // ×4 payout (2 stacks) -> 3 bonus copies.
                     string compensation = DoubleCard.IsAbilityCard(added)
                         ? AbilityUpCard.CardName
                         : PowerUpCard.CardName;
-                    applyingCount = cards.Count + 1;
-                    UnityEngine.Debug.Log($"[DEER] Double compensated on unique '{added.cardName}' -> '{compensation}' (expect count {applyingCount})");
+                    // Total copies owed = 2 × pendingStacks; the pick itself
+                    // was applied once, so that one is "paid".
+                    int copies = pendingStacks * 2 - 1;
+                    pendingStacks = 0;
+                    armAckPending = false;
+                    applyingCount = cards.Count + copies;
+                    UnityEngine.Debug.Log($"[DEER] Double compensated on unique '{added.cardName}' -> '{compensation}' x{copies} (expect count {applyingCount})");
 
                     UnboundLib.NetworkingManager.RPC(
                         typeof(DoubleEffect),
                         nameof(RPCA_DoubleApply),
                         player.playerID,
-                        compensation
+                        compensation,
+                        copies
                     );
                     continue;
                 }
 
-                if (pendingDouble)
+                if (pendingStacks > 0)
                 {
-                    pendingDouble = false;
-                    applyingCount = cards.Count + 1;
-                    UnityEngine.Debug.Log($"[DEER] Double FIRING on '{added.cardName}' for {player.data.name} (expect count {applyingCount})");
+                    // Vanilla pick already applied the card once; total owed is
+                    // 2 × pendingStacks (1 stack -> receive 2, 2 -> receive 4,
+                    // 3 -> receive 8), so apply 2 × stacks − 1 extra copies.
+                    int copies = pendingStacks * 2 - 1;
+                    pendingStacks = 0;
+                    armAckPending = false;
+                    applyingCount = cards.Count + copies;
+                    UnityEngine.Debug.Log($"[DEER] Double FIRING '{added.cardName}' x{copies} extra for {player.data.name} (expect count {applyingCount})");
 
                     UnboundLib.NetworkingManager.RPC(
                         typeof(DoubleEffect),
                         nameof(RPCA_DoubleApply),
                         player.playerID,
-                        added.cardName
+                        added.cardName,
+                        copies
                     );
                 }
             }
         }
 
         [UnboundLib.Networking.UnboundRPC]
-        private static void RPCA_DoubleApply(int playerID, string cardName)
+        private static void RPCA_DoubleApply(int playerID, string cardName, int copies)
         {
             Player target = GetPlayerByID(playerID);
             CardInfo cardMaster = FindCardMaster(cardName);
             if (target == null || cardMaster == null)
             {
-                UnityEngine.Debug.LogWarning($"[DEER] RPCA_DoubleApply failed: player={playerID} card='{cardName}'");
+                UnityEngine.Debug.LogWarning($"[DEER] RPCA_DoubleApply failed: player={playerID} card='{cardName}' copies={copies}");
                 return;
             }
+            if (copies < 1)
+            {
+                copies = 1;
+            }
 
-            UnityEngine.Debug.Log($"[DEER] RPCA_DoubleApply re-applying '{cardName}' to {target.data.name}");
-            ApplyCardToPlayer(target, cardMaster);
+            for (int i = 0; i < copies; i++)
+            {
+                UnityEngine.Debug.Log($"[DEER] RPCA_DoubleApply re-applying '{cardName}' to {target.data.name} ({i + 1}/{copies})");
+                ApplyCardToPlayer(target, cardMaster);
+            }
         }
 
         private static Player GetPlayerByID(int playerID)

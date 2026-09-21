@@ -170,9 +170,18 @@ The game code is already decompiled on the linux drive:
 
 ## Double bonus-card compensation (DoubleCard + BonusCards.cs; compiled clean, runtime playtest pending)
 
-- Double consumed on a per-player-unique pick (`!added.allowMultiple`): no duplicate copy; Double applies a bonus card via the existing `RPCA_DoubleApply(name)` channel instead — "Ability Up" (-25% all ability cooldowns) for this mod's ability cards, "Power Up" (+25% damage, `gun.damage *= 1.25f`) for everything else (vanilla/other-mod uniques included). Classification: `DoubleCard.IsAbilityCard` — static HashSet by exact cardName ("Portals", "Heart", "Invisibility", "Shambles", "Blink", "Sovereign"); keep it in sync with new ability cards.
+- Double consumed on a per-player-unique pick (`!added.allowMultiple`): no duplicate copy; Double applies a bonus card via the existing `RPCA_DoubleApply(name, copies)` channel instead — "Ability Up" (-25% all ability cooldowns) for this mod's ability cards, "Power Up" (+25% damage, `gun.damage *= 1.25f`) for everything else (vanilla/other-mod uniques included). Classification: `DoubleCard.IsAbilityCard` — static HashSet by exact cardName ("Portals", "Heart", "Invisibility", "Shambles", "Blink", "Sovereign"); keep it in sync with new ability cards.
 - "Ability Up" is deck-driven only (no SetupCard stats): an entry in `AbilityCooldowns.Sources` ("Ability Up", -0.25) — stacking/removal handled by the deck-scan; `Apply()` floors the total multiplier at ×0.1 so cooldowns never hit zero.
 - Bonus cards ARE in the normal pick pool (Uncommon) — the earlier GetRanomCard hide-patch was removed per design change. Bonus cards have NO description text (empty GetDescription → `cardDestription = ""`), as does Quick Attack (OverdriveCard).
+
+## Double stacking (DoubleCard; compiled clean, runtime playtest pending)
+
+- `pendingStacks` (int) replaced the boolean `pendingDouble`: 1 pending Double = receive 2 of the next card, 2 = receive 4, 3 = receive 8 (each extra Double doubles the multiplier). Doubled Doubles never chain-trigger each other — they only multiply the pending multiplier (same no-exponential rule as before).
+- PAYOUT MATH: extra copies = `pendingStacks * 2 - 1` (total = 2 × stacks, one already applied by the vanilla pick). v1 used `pendingStacks` extra — wrong (2 stacks → 3 total, not 4).
+- ARMING DEDUPE (fixed 5/6-cards bug): both `OnAddCard.ArmPending()` and the Update deck-scan see the same Double land; with the old bool that was idempotent, but stacking multiplied TWICE per pick (observed: two Doubles → pendingStacks 4 → 5 POISON, occasionally 6 via rebuild re-add timing). `armAckPending` (set on arm, consumed by the Double's own deck-scan echo, or by an unsuppressed rebuild-re-add arming) keeps it one-arm-per-pick. Also cleared when stacks are consumed.
+- On fire: `copies` extra copies arrive via the single RPC (RPCA_DoubleApply loops ApplyCardToPlayer `copies` times); `applyingCount = cards.Count + copies` still absorbs the self-trigger on the owner client (intermediate counts during the loop just log extra "own duplicate confirmed" lines — harmless).
+- Unique-card compensation scales too: one bonus copy per missed duplicate = `pendingStacks * 2 - 1` bonus copies.
+- OnRemoveCard (Double removed via Delete/rebuild) destroys DoubleEffect and drops any pending stacks — pending value is not persisted through removal, same as before stacking existed.
 
 ## Tooling
 
