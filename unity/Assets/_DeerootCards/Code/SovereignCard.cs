@@ -215,7 +215,9 @@ namespace DeerootCards.Cards
         // Default bot kit tuning — these are applied AFTER resetting the clone
         // to vanilla defaults, so the bot is completely independent of the
         // master's cards. Change these constants to tweak the bot's kit.
-        internal const float BotDamage = 1f;
+        // 0.5× vanilla → 27.5 dmg/shot vs base 55 → exactly 4 shots to kill a
+        // 100 HP base player (Gun.ApplyProjectileStats: damage = 55 * gun.damage).
+        internal const float BotDamage = 0.5f;
         internal const float BotProjectileSpeed = 1f;
         internal const float BotProjectileSimulationSpeed = 1f;
         internal const float BotAttackSpeed = 0.3f;
