@@ -471,7 +471,9 @@ namespace DeerootCards.Cards
                 if (Input.GetKeyDown(keyPortalA) || Input.GetKeyDown(keyPortalB))
                 {
                     int slot = Input.GetKeyDown(keyPortalA) ? 0 : 1;
-                    placeCooldownLeft = placeCooldown;
+                    // Global ability-cooldown modifier (e.g. Quick Attack +20%):
+                    // 2.5s base -> 3.0s with one Quick Attack.
+                    placeCooldownLeft = AbilityCooldowns.Apply(player, placeCooldown);
 
                     Vector3 pos = player.transform.position;
                     pos.z = 0f;

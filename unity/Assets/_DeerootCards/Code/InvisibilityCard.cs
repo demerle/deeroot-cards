@@ -344,8 +344,10 @@ namespace DeerootCards.Cards
             }
             if (Input.GetKeyDown(triggerKey))
             {
-                cooldownLeft = Cooldown;
-                UnityEngine.Debug.Log($"[DEER] Invisibility key {triggerKey} pressed (cooldown {Cooldown}s)");
+                // Global ability-cooldown modifier (e.g. Quick Attack +20%):
+                // 10s base -> 12s with one Quick Attack.
+                cooldownLeft = AbilityCooldowns.Apply(player, Cooldown);
+                UnityEngine.Debug.Log($"[DEER] Invisibility key {triggerKey} pressed (cooldown {AbilityCooldowns.Apply(player, Cooldown):F1}s of base {Cooldown}s)");
                 UnboundLib.NetworkingManager.RPC(
                     typeof(InvisibilityEffect),
                     nameof(RPC_TriggerInvis),

@@ -4,7 +4,11 @@ using UnboundLib.Cards;
 namespace DeerootCards.Cards
 {
     /// <summary>
-    /// Quick Attack (formerly Overdrive): +50% attack speed, -25% movement speed.
+    /// Quick Attack (formerly Overdrive): +35% attack speed,
+    /// +25% ability cooldowns (Invisibility/Portal — see AbilityCooldowns).
+    /// The cooldown modifier is NOT wired here: AbilityCooldowns.Sources is the
+    /// single registry (pure function of the deck, immune to the deck-rebuild
+    /// re-fire of OnAddCard). Adding a copy of this card stacks the modifier.
     /// </summary>
     public class OverdriveCard : CustomCard
     {
@@ -13,10 +17,9 @@ namespace DeerootCards.Cards
             // NOTE: CharacterStatModifiers.attackSpeedMultiplier is NOT copied off cards,
             // so we modify the Gun's attackSpeed stat instead. Gun.attackSpeed is the
             // cooldown between attacks: a LOWER value means attacks come out MORE often.
-            // 2/3 ~= 0.667 gives a 50% increase in attack rate.
-            gun.attackSpeed = 2f / 3f;
-            // downside: -25% movement speed (multiplier field; 0.75 = 75% of normal)
-            statModifiers.movementSpeed = 0.75f;
+            // 1/1.35 ~= 0.741 gives a 35% increase in attack rate.
+            gun.attackSpeed = 1f / 1.35f;
+            // (movement speed debuff removed per design change — card is now pure upside + cooldown cost)
             UnityEngine.Debug.Log($"[DEER] OverdriveCard SetupCard: gun.attackSpeed={gun.attackSpeed}, movementSpeed={statModifiers.movementSpeed}");
         }
 
@@ -36,7 +39,7 @@ namespace DeerootCards.Cards
 
         protected override string GetDescription()
         {
-            return "Your weapon operates well past its limits — your legs can't keep up.";
+            return "Your weapon operates well past its limits — at the cost of your other abilities.";
         }
 
         protected override CardInfoStat[] GetStats()
@@ -47,14 +50,14 @@ namespace DeerootCards.Cards
                 {
                     positive = true,
                     stat = "Attack speed",
-                    amount = "+50%",
+                    amount = "+35%",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 },
                 new CardInfoStat
                 {
                     positive = false,
-                    stat = "Movement speed",
-                    amount = "-25%",
+                    stat = "Ability cooldowns",
+                    amount = "+25%",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 },
             };

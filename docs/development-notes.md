@@ -149,6 +149,15 @@ The game code is already decompiled on the linux drive:
 - Stacks multiply (`2^stacks`). Template `allowMultiple` is 0, so a normal pick is exactly ×2. Log line tags `OWN` vs `foreign` using the same spawner comparison vanilla uses to skip the callback — the OWN line is the playtest gate.
 - Do not also scale `transform.localScale` on the bullet: `ProjectileHit.Start` does `damage *= localScale.x`, so a scale bump before Start double-applies.
 
+## Global ability cooldowns (AbilityCooldowns.cs; compiled clean, runtime playtest pending)
+
+- **Pattern: cooldown modifiers are a pure function of the deck, applied at trigger time.** `AbilityCooldowns.Apply(player, BaseCooldown)` scans `player.data.currentCards` by `cardName` (case-insensitive, same identity-immune trick as `HasCard` in BouncyBallCard) against the static `Sources` table (`cardName -> additive modifier per copy`), and returns `Base × (1 + sum)`. Quick Attack is the first source: `("Quick Attack", 0.25f)` = +25% (its only downside; it no longer has a movement debuff).
+- **Why no effect component / no add-remove bookkeeping:** card removal rebuilds the whole deck and re-fires every `OnAddCard` (see Card-removal section) — an accumulate/subtract registry would drift. Stacks and removal are handled for free because they're just changes to `currentCards`.
+- **Recipe for a new ability card with a cooldown:** define `internal const float BaseCooldown = ...f` on the effect, and at trigger time (owner client only — ability input is IsMine-gated, so no RPC) set `cooldownLeft = AbilityCooldowns.Apply(player, BaseCooldown);`. HUD countdown picks up the scaled value automatically.
+- **Recipe for a new cooldown-MODIFYING card:** add one line to `AbilityCooldowns.Sources` and a matching `CardInfoStat` on the card. No `OnAddCard` logic.
+- Migrated: InvisibilityEffect (base 10s) and PortalEffect placement (base 2.5s). Heart card NOT migrated (out of scope for now). Block cooldown (`cdAdd`/`cdMultiplier`) untouched.
+- Known playtest gates: Invisibility + Quick Attack → 12.5s; Portals + Quick Attack → 3.125s; Delete Quick Attack mid-match → back to base on the next trigger.
+
 ## Tooling
 
 - Test logs readable directly at `~/.config/r2modmanPlus-local/ROUNDS/profiles/dev/BepInEx/LogOutput.log` (r2modman dev profile, no need for the user to paste).
