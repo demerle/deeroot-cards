@@ -96,6 +96,14 @@ The game code is already decompiled on the linux drive:
 - Custom-effect stacking without AttackLevel: merge in `Awake` — `GetComponents<T>()`, bump the existing sibling's `stacks`, `Destroy(this)`. Works even when both copies are added in the same frame (sibling not yet Started).
 - `PlayerVelocity.velocity` read via cached static `FieldInfo` reflection (internal field; same as the Blink write pattern but cheaper per-frame).
 
+## Ability-card HUD icons — the standard (AbilityHud.cs; Portal + Heart migrated)
+
+- **`AbilityHUD` is the single shared registration point for bottom-left ability icons** (portal, heart, future ability cards). Nothing positions itself: an effect registers `AbilityHUD.Register(this, HudVisible, HudDraw)` in `Awake` and calls `AbilityHUD.Unregister(this)` in its existing `OnDestroy`. A `DontDestroyOnLoad` `AbilityHudDriver` (created on demand, `DeleteOverlayUI`-style guard) stacks every currently-visible icon bottom-left in one row — CoD-zombies perk style: new icons append right and shift existing ones; removals recompact with no holes.
+- Card recipe: two lines — register in Awake, unregister in OnDestroy; draw via `AbilityHUD.DrawCircle(rect, tex, readyColor, spentColor, ready, caption)` (shared dark-outline + inset-disc + centered bold-label presentation, so all icons look identical). Slot order = registration order = card pick order.
+- DO NOT write a per-card `OnGUI` with its own fixed Rect — two cards doing that overlap on the pixel. This replaces the per-effect OnGUI blocks that used to live in PortalEffect/HeartEffect.
+- Stack safety: registration is keyed on the effect owner (`ReferenceEquals`) and effects are `GetOrAddComponent` singletons, so re-picking a stacked card never duplicates an icon. Remote players' effects also register but their `HudVisible` is `IsMine`-gated → zero footprint.
+- Draw delegates run inside the driver's `OnGUI`, so `GUI.skin`/label styles are valid in them (the shared `labelStyle` lives in `AbilityHUD`).
+
 ## Bouncy Ball card (BouncyBallCard.cs; runtime verified, ×2 knockback + ×2-ob tuning playtest pending)
 
 - **Knockback-taken chokepoint: `HealthHandler.CallTakeForce` is the networked wrapper for ALL external knockback** — the funnel prefix scales its `force` arg, and the scaled value rides the vanilla `RPCA_SendTakeForce` Photon RPC (`RpcTarget.All`) to every client, so it syncs with zero custom networking. Callers: `ProjectileHit` (bullets), `Explosion` (incl. own rockets), `DamageBox` hazards, `NetworkPhysicsObject.OnPlayerCollision` (**boxes/props hitting players**), `LineRangeEffect`, `OutOfBoundsHandler` (pit bounce).

@@ -192,6 +192,7 @@ namespace DeerootCards.Cards
 
         public void OnDestroy()
         {
+            AbilityHUD.Unregister(this);
             if (player != null)
             {
                 RemoveHeart(player.playerID);
@@ -898,16 +899,17 @@ namespace DeerootCards.Cards
         }
 
         // ---------------------------------------------------------------
-        // Client-side HUD (bottom-left): heart ability icon, same presentation
-        // as the portal card only with a filled disc. Red "H" = ready; amber,
-        // empty = the heart is currently on the ground.
+        // Client-side HUD (bottom-left): heart ability icon, same shared
+        // presentation as the portal card via the AbilityHUD row
+        // (see AbilityHud.cs). Red "H" = ready; amber, empty = the heart is
+        // currently on the ground.
         // ---------------------------------------------------------------
         private static Texture2D hudIconTex;
-        private static GUIStyle hudLabelStyle;
 
         private void Awake()
         {
             EnsureHudTextures();
+            AbilityHUD.Register(this, HudVisible, HudDraw);
         }
 
         private static void EnsureHudTextures()
@@ -919,44 +921,23 @@ namespace DeerootCards.Cards
             }
         }
 
-        private void OnGUI()
+        private bool HudVisible()
         {
-            if (player == null || player.data == null || !player.data.view.IsMine)
-            {
-                return; // draw only on the owning client
-            }
-            if (!player.data.isPlaying)
-            {
-                return; // hidden outside active play
-            }
+            return player != null && player.data != null && player.data.view.IsMine && player.data.isPlaying;
+        }
 
-            float size = Mathf.Clamp(Screen.height / 14f, 42f, 60f);
-            float margin = 14f;
-            Rect area = new Rect(margin, Screen.height - size - margin, size, size);
-
+        private void HudDraw(Rect area)
+        {
             bool ready = GetState(player.playerID) == HeartState.Carried;
-
-            GUI.color = new Color(0f, 0f, 0f, 0.55f);
-            GUI.DrawTexture(area, hudIconTex, ScaleMode.ScaleToFit);
-
-            float border = size * 0.08f;
-            Rect inner = new Rect(area.x + border, area.y + border, size - 2f * border, size - 2f * border);
-            GUI.color = ready ? new Color(0.90f, 0.25f, 0.35f) : new Color(0.95f, 0.55f, 0.15f); // ready = red (it IS a heart), spent = amber
-            GUI.DrawTexture(inner, hudIconTex, ScaleMode.ScaleToFit);
-
-            if (hudLabelStyle == null)
-            {
-                hudLabelStyle = new GUIStyle(GUI.skin.label)
-                {
-                    alignment = TextAnchor.MiddleCenter,
-                    fontStyle = FontStyle.Bold
-                };
-            }
-            hudLabelStyle.fontSize = Mathf.RoundToInt(size * 0.34f);
             string caption = ready ? keyThrow.ToString() : string.Empty;
-            GUI.color = Color.white;
-            GUI.Label(area, caption, hudLabelStyle);
-            GUI.color = Color.white;
+            AbilityHUD.DrawCircle(
+                area,
+                hudIconTex,
+                new Color(0.90f, 0.25f, 0.35f), // ready = red (it IS a heart)
+                new Color(0.95f, 0.55f, 0.15f), // on the ground = amber
+                ready,
+                caption
+            );
         }
 
         private static Texture2D MakeDiscTexture()

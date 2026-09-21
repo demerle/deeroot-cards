@@ -214,6 +214,7 @@ namespace DeerootCards.Cards
 
         private void OnDestroy()
         {
+            AbilityHUD.Unregister(this);
             RemovePortals(player != null ? player.playerID : -1);
         }
 
@@ -600,10 +601,11 @@ namespace DeerootCards.Cards
         }
 
         // ---------------------------------------------------------------
-        // Client-side HUD (bottom-left): portal ability icon + cooldown
-        // Only the owning client renders its own indicator — other players
-        // never see it because OnGUI here only runs on the local machine and
-        // only for the effect of the local player.
+        // Client-side HUD (bottom-left): portal ability icon + cooldown.
+        // Registered with the shared AbilityHUD row (see AbilityHud.cs) so it
+        // lines up next to other ability icons instead of stacking on them.
+        // Only the owning client renders it — the visible delegate gates on
+        // IsMine, so other players never draw this icon.
         // ---------------------------------------------------------------
         private static Texture2D hudIconTex;
 
@@ -614,6 +616,7 @@ namespace DeerootCards.Cards
                 player = GetComponent<Player>();
             }
             EnsureHudTextures();
+            AbilityHUD.Register(this, HudVisible, HudDraw);
         }
 
         private static void EnsureHudTextures()
@@ -625,49 +628,24 @@ namespace DeerootCards.Cards
             }
         }
 
-        private void OnGUI()
+        private bool HudVisible()
         {
-            if (player == null || player.data == null || !player.data.view.IsMine)
-            {
-                return; // draw only on the owning client
-            }
-            if (!player.data.isPlaying)
-            {
-                return; // hidden outside active play (game over, menus)
-            }
-
-            float size = Mathf.Clamp(Screen.height / 14f, 42f, 60f);
-            float margin = 14f;
-            Rect area = new Rect(margin, Screen.height - size - margin, size, size);
-
-            bool ready = placeCooldownLeft <= 0f;
-
-            // dark outline disc (inset color disc on top => border all around)
-            GUI.color = new Color(0f, 0f, 0f, 0.55f);
-            GUI.DrawTexture(area, hudIconTex, ScaleMode.ScaleToFit);
-
-            float border = size * 0.08f;
-            Rect inner = new Rect(area.x + border, area.y + border, size - 2f * border, size - 2f * border);
-            GUI.color = ready ? new Color(0.20f, 0.85f, 0.35f) : new Color(0.90f, 0.25f, 0.20f);
-            GUI.DrawTexture(inner, hudIconTex, ScaleMode.ScaleToFit);
-
-            // number (or key hint) inside the circle
-            if (hudLabelStyle == null)
-            {
-                hudLabelStyle = new GUIStyle(GUI.skin.label)
-                {
-                    alignment = TextAnchor.MiddleCenter,
-                    fontStyle = FontStyle.Bold
-                };
-            }
-            hudLabelStyle.fontSize = Mathf.RoundToInt(size * (ready ? 0.34f : 0.38f));
-            string caption = ready ? $"{keyPortalA} / {keyPortalB}" : placeCooldownLeft.ToString("F1");
-            GUI.color = Color.white;
-            GUI.Label(area, caption, hudLabelStyle);
-            GUI.color = Color.white;
+            return player != null && player.data != null && player.data.view.IsMine && player.data.isPlaying;
         }
 
-        private static GUIStyle hudLabelStyle;
+        private void HudDraw(Rect area)
+        {
+            bool ready = placeCooldownLeft <= 0f;
+            string caption = ready ? $"{keyPortalA} / {keyPortalB}" : placeCooldownLeft.ToString("F1");
+            AbilityHUD.DrawCircle(
+                area,
+                hudIconTex,
+                new Color(0.20f, 0.85f, 0.35f), // ready = green
+                new Color(0.90f, 0.25f, 0.20f), // on cooldown = red
+                ready,
+                caption
+            );
+        }
 
         // ---- visuals ----
 
