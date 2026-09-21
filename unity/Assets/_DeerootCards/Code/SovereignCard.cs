@@ -35,6 +35,9 @@ namespace DeerootCards.Cards
     {
         public const string CardName = "Sovereign";
 
+        // Downside: block recharges this much slower (Block: (cooldown + cdAdd) * cdMultiplier).
+        private const float BlockCooldownAdd = 2f;
+
         private static bool harmonyApplied;
 
         public static void Init()
@@ -48,7 +51,8 @@ namespace DeerootCards.Cards
 
         public override void SetupCard(CardInfo cardInfo, Gun gun, ApplyCardStats cardStats, CharacterStatModifiers statModifiers, Block block)
         {
-            // The holder is unchanged — the bots carry the payoff.
+            // The holder pays a slower block recharge for an infinite bot army.
+            block.cdAdd = BlockCooldownAdd;
         }
 
         public override void OnAddCard(Player player, Gun gun, GunAmmo gunAmmo, CharacterData data, HealthHandler health, Gravity gravity, Block block, CharacterStatModifiers characterStats)
@@ -75,7 +79,7 @@ namespace DeerootCards.Cards
 
         protected override string GetDescription()
         {
-            return "Every block summons a loyal copy of yourself to fight for you. 1 HP — treat them well.";
+            return "Every block summons a loyal copy of yourself to fight for you. 1 HP — treat them well. Blocks recharge noticeably slower.";
         }
 
         protected override CardInfoStat[] GetStats()
@@ -98,9 +102,9 @@ namespace DeerootCards.Cards
                 },
                 new CardInfoStat
                 {
-                    positive = true,
-                    stat = "Bot count",
-                    amount = "Unlimited",
+                    positive = false,
+                    stat = "Block cooldown",
+                    amount = "+2s",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 }
             };
@@ -245,10 +249,10 @@ namespace DeerootCards.Cards
             }
 
             var botView = go.GetComponent<PhotonView>();
-            UnityEngine.Debug.Log($"[DEER] Sovereign: master {master.playerID} blocked, bot viewID {botView.ViewID}");
+            UnityEngine.Debug.Log($"[DEER] Sovereign: master {master.playerID} blocked at {pos}, bot viewID {botView.ViewID}");
 
             // One broadcast configures every client's clone (owner included).
-            NetworkingManager.RPC(typeof(SovereignBot), nameof(RPC_SpawnBot), master.playerID, botView.ViewID);
+            NetworkingManager.RPC(typeof(SovereignBot), nameof(RPC_SpawnBot), master.playerID, botView.ViewID, pos.x, pos.y);
         }
 
         /// <summary>
@@ -258,12 +262,12 @@ namespace DeerootCards.Cards
         /// SpawnMinion recipe.
         /// </summary>
         [UnboundRPC]
-        public static void RPC_SpawnBot(int masterPlayerID, int botViewID)
+        public static void RPC_SpawnBot(int masterPlayerID, int botViewID, float spawnPosX, float spawnPosY)
         {
-            StartCoroutineDeferred(botViewID, masterPlayerID);
+            StartCoroutineDeferred(botViewID, masterPlayerID, new Vector3(spawnPosX, spawnPosY, 0f));
         }
 
-        private static void ConfigureBot(int masterPlayerID, int botViewID)
+        private static void ConfigureBot(int masterPlayerID, int botViewID, Vector3 spawnPos)
         {
             var view = PhotonNetwork.GetPhotonView(botViewID);
             if (view == null || view.gameObject == null)
@@ -329,18 +333,68 @@ namespace DeerootCards.Cards
                 var brain = bot.gameObject.AddComponent<SovereignBotBrain>();
                 brain.Init(master, masterPlayerID);
             }
+
+            // Position fix: every fresh player-prefab instantiate fires
+            // PlayerManager.PlayerJoined (from Player.Start); the sandbox
+            // gamemode (GM_Test.PlayerWasAdded) teleports new players to
+            // MapManager.GetRandomSpawnPos() — that's why bots landed randomly.
+            // Re-assert the intended spawn spot AFTER config, and keep
+            // re-asserting for a few frames since our config RPC can run either
+            // before or after that Start-frame teleport (ordering
+            // non-deterministic). Same enforcement covers any RWF gamemode hook
+            // that does the equivalent on remote clients.
+            var host = SovereignRunner.Get();
+            host.StartCoroutine(EnforcePosition(bot, spawnPos));
             UnityEngine.Debug.Log($"[DEER] Sovereign: bot configured (owner client: {view.IsMine}, master {masterPlayerID}, HP {bot.maxHealth})");
         }
 
-        private static void StartCoroutineDeferred(int botViewID, int masterPlayerID)
+        private static IEnumerator EnforcePosition(CharacterData bot, Vector3 spawnPos)
+        {
+            if (bot == null)
+            {
+                yield break;
+            }
+            var playerVel = bot.GetComponent<PlayerVelocity>();
+            if (playerVel == null)
+            {
+                yield break;
+            }
+            for (int frame = 0; frame < 3; frame++)
+            {
+                playerVel.position = spawnPos;
+                ZeroVelocity(playerVel);
+                // ignore walls for the relocation (same pattern as portal
+                // teleports) so the position apply doesn't clip into terrain
+                var collision = bot.GetComponent<PlayerCollision>();
+                if (collision != null)
+                {
+                    collision.IgnoreWallForFrames(2);
+                }
+                UnityEngine.Debug.Log($"[DEER] Sovereign: pos frame {frame}: want {spawnPos} got {bot.transform.position}");
+                yield return null;
+            }
+        }
+
+        private static void ZeroVelocity(PlayerVelocity playerVel)
+        {
+            if (velocityField == null)
+            {
+                velocityField = AccessTools.Field(typeof(PlayerVelocity), "velocity");
+            }
+            velocityField?.SetValue(playerVel, Vector2.zero);
+        }
+
+        private static System.Reflection.FieldInfo velocityField;
+
+        private static void StartCoroutineDeferred(int botViewID, int masterPlayerID, Vector3 spawnPos)
         {
             // The networked clone may arrive after the RPC on a given client
             // (Photon doesn't order these globally) — retry for up to a second.
             var host = SovereignRunner.Get();
-            host.StartCoroutine(DeferredConfig(botViewID, masterPlayerID));
+            host.StartCoroutine(DeferredConfig(botViewID, masterPlayerID, spawnPos));
         }
 
-        private static IEnumerator DeferredConfig(int botViewID, int masterPlayerID)
+        private static IEnumerator DeferredConfig(int botViewID, int masterPlayerID, Vector3 spawnPos)
         {
             for (float waited = 0f; waited < 1f; waited += Time.unscaledDeltaTime)
             {
@@ -350,7 +404,7 @@ namespace DeerootCards.Cards
                 }
                 yield return null;
             }
-            ConfigureBot(masterPlayerID, botViewID);
+            ConfigureBot(masterPlayerID, botViewID, spawnPos);
         }
 
         /// <summary>Destroys every bot whose master has this playerID (all clients).</summary>
