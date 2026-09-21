@@ -79,7 +79,7 @@ namespace DeerootCards.Cards
 
         protected override string GetDescription()
         {
-            return "Every block summons a loyal copy of yourself to fight for you. 1 HP — treat them well. Blocks recharge noticeably slower.";
+            return "Summon subjects to do your bidding";
         }
 
         protected override CardInfoStat[] GetStats()
@@ -91,13 +91,6 @@ namespace DeerootCards.Cards
                     positive = true,
                     stat = "On block",
                     amount = "Summon bot",
-                    simepleAmount = CardInfoStat.SimpleAmount.Some
-                },
-                new CardInfoStat
-                {
-                    positive = true,
-                    stat = "Bot health",
-                    amount = "1 HP",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 },
                 new CardInfoStat

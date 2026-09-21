@@ -42,27 +42,13 @@ namespace DeerootCards.Cards
 
         protected override string GetDescription()
         {
-            return "Blocking launches you twice as far — but there's no punch behind it.";
+            return "Launch yourself at the enemy on block (double the shield charge distance).";
         }
 
         protected override CardInfoStat[] GetStats()
         {
             return new CardInfoStat[]
             {
-                new CardInfoStat
-                {
-                    positive = true,
-                    stat = "On block",
-                    amount = "Dive far forward",
-                    simepleAmount = CardInfoStat.SimpleAmount.Some
-                },
-                new CardInfoStat
-                {
-                    positive = false,
-                    stat = "No damage, no re-block",
-                    amount = "Pure movement",
-                    simepleAmount = CardInfoStat.SimpleAmount.Some
-                },
                 new CardInfoStat
                 {
                     positive = false,
