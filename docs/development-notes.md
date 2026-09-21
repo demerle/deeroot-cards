@@ -168,6 +168,12 @@ The game code is already decompiled on the linux drive:
 - Bullet post-swap continuation: an enemy bullet swapped to your old spot keeps flying along its original direction past it; `holdPlayerFor`/`playersHit` self-hit interactions with own bullets are a playtest gate.
 - HUD: AbilityHUD recipe, orange ready / dark gray cooldown, key caption + 6s countdown (`BaseCooldown` consumed via `AbilityCooldowns.Apply`).
 
+## Double bonus-card compensation (DoubleCard + BonusCards.cs; compiled clean, runtime playtest pending)
+
+- Double consumed on a per-player-unique pick (`!added.allowMultiple`): no duplicate copy; Double applies a bonus card via the existing `RPCA_DoubleApply(name)` channel instead — "Ability Up" (-25% all ability cooldowns) for this mod's ability cards, "Power Up" (+25% damage, `gun.damage *= 1.25f`) for everything else (vanilla/other-mod uniques included). Classification: `DoubleCard.IsAbilityCard` — static HashSet by exact cardName ("Portals", "Heart", "Invisibility", "Shambles", "Blink", "Sovereign"); keep it in sync with new ability cards.
+- "Ability Up" is deck-driven only (no SetupCard stats): an entry in `AbilityCooldowns.Sources` ("Ability Up", -0.25) — stacking/removal handled by the deck-scan; `Apply()` floors the total multiplier at ×0.1 so cooldowns never hit zero.
+- Bonus cards never appear in random pick offers: Harmony postfix on `CardChoice.GetRanomCard` (the single source of random offers) re-rolls away the names; direct RPC application is unaffected. Patch applied via `BonusCards.Init()` in DeerootCards Awake; both cards built with `CustomCard.BuildCard`.
+
 ## Tooling
 
 - Test logs readable directly at `~/.config/r2modmanPlus-local/ROUNDS/profiles/dev/BepInEx/LogOutput.log` (r2modman dev profile, no need for the user to paste).

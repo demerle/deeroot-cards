@@ -1,3 +1,5 @@
+using UnityEngine;
+
 namespace DeerootCards.Cards
 {
     /// <summary>
@@ -31,7 +33,13 @@ namespace DeerootCards.Cards
         private static readonly (string cardName, float add)[] Sources =
         {
             ("Quick Attack", 0.25f), // +25% ability cooldowns (Quick Attack downside)
+            ("Ability Up", -0.25f), // -25% ability cooldowns (Double's unique-card compensation)
         };
+
+        // Safety floor: cooldown multiplier can never drop below ×0.1 (ability
+        // spam would break the game). Two Ability Ups (-50%) + Quick Attack
+        // (+25%) → ×0.75... but pathological stacks clamp at ×0.1.
+        private const float MinMultiplier = 0.1f;
 
         /// <summary>
         /// Sum of cooldown modifiers from the player's current deck
@@ -67,7 +75,8 @@ namespace DeerootCards.Cards
         /// </summary>
         public static float Apply(Player player, float baseCooldown)
         {
-            return baseCooldown * (1f + GetModifier(player));
+            float multiplier = Mathf.Max(1f + GetModifier(player), MinMultiplier);
+            return baseCooldown * multiplier;
         }
     }
 }

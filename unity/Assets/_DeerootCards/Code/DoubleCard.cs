@@ -15,6 +15,25 @@ namespace DeerootCards.Cards
     {
         public const string CardName = "Double It And Give It To The Next";
 
+        // Per-player-unique classification for Double's compensation payout:
+        // card names in this set (this mod's ability cards) compensate with
+        // "Ability Up" (-25% all ability cooldowns); every other unique card —
+        // vanilla uniques included — compensates with "Power Up" (+25% damage).
+        internal static readonly System.Collections.Generic.HashSet<string> AbilityCardNames =
+            new System.Collections.Generic.HashSet<string>
+            {
+                "Portals", "Heart", "Invisibility", "Shambles", "Blink", "Sovereign"
+            };
+
+        internal static bool IsAbilityCard(CardInfo card)
+        {
+            if (card == null)
+            {
+                return false;
+            }
+            return AbilityCardNames.Contains(card.cardName);
+        }
+
         public override void OnAddCard(Player player, Gun gun, GunAmmo gunAmmo, CharacterData data, HealthHandler health, Gravity gravity, Block block, CharacterStatModifiers characterStats)
         {
             // The vanilla pick pipeline re-runs during UnboundLib's removal
@@ -159,6 +178,30 @@ namespace DeerootCards.Cards
                 {
                     // Our own duplicate application landing on the owner client — skip.
                     UnityEngine.Debug.Log("[DEER] Double: own duplicate confirmed, no re-trigger");
+                    continue;
+                }
+
+                if (pendingDouble && !added.allowMultiple)
+                {
+                    // Per-player unique card: no duplicate copy — compensate instead.
+                    // The unique card itself already applied (vanilla pick flow);
+                    // Double's payout becomes a bonus card: "Ability Up" for our
+                    // ability cards, "Power Up" (+25% damage) for everything else
+                    // (including vanilla uniques). Double is consumed, exactly as
+                    // if it had fired on a normal card.
+                    pendingDouble = false;
+                    string compensation = DoubleCard.IsAbilityCard(added)
+                        ? AbilityUpCard.CardName
+                        : PowerUpCard.CardName;
+                    applyingCount = cards.Count + 1;
+                    UnityEngine.Debug.Log($"[DEER] Double compensated on unique '{added.cardName}' -> '{compensation}' (expect count {applyingCount})");
+
+                    UnboundLib.NetworkingManager.RPC(
+                        typeof(DoubleEffect),
+                        nameof(RPCA_DoubleApply),
+                        player.playerID,
+                        compensation
+                    );
                     continue;
                 }
 
