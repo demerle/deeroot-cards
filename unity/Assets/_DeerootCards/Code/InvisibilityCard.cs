@@ -9,7 +9,7 @@ namespace DeerootCards.Cards
 {
     /// <summary>
     /// Invisibility ability card: passive +15% move speed; press T to vanish
-    /// for 2.5s on an 8s personal cooldown (PortalCard input/RPC/HUD recipe).
+    /// for 2.5s on a 10s personal cooldown (PortalCard input/RPC/HUD recipe).
     ///
     /// A player renders through THREE independent component families, across TWO
     /// separate object trees — ALL must be swept or the effect looks broken:
@@ -83,7 +83,7 @@ namespace DeerootCards.Cards
 
         protected override string GetDescription()
         {
-            return "Press T to vanish from sight for 2.5 seconds. Your bullets and footsteps still give you away.";
+            return "Vanish into the wind";
         }
 
         protected override CardInfoStat[] GetStats()
@@ -99,16 +99,16 @@ namespace DeerootCards.Cards
                 },
                 new CardInfoStat
                 {
-                    positive = true,
-                    stat = "Vanish 2.5s",
-                    amount = "T",
+                    positive = false,
+                    stat = "Cooldown",
+                    amount = "10 seconds",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 },
                 new CardInfoStat
                 {
-                    positive = false,
-                    stat = "Ability Cooldown",
-                    amount = "8 seconds",
+                    positive = true,
+                    stat = "Duration",
+                    amount = "2.5 seconds",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 }
             };
@@ -144,7 +144,7 @@ namespace DeerootCards.Cards
     public class InvisibilityEffect : MonoBehaviour
     {
         internal const float Duration = 2.5f;
-        internal const float Cooldown = 8f;
+        internal const float Cooldown = 10f;
 
         private Player player;
         private Holding holding;

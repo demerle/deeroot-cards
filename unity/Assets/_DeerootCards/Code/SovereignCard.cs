@@ -14,7 +14,8 @@ namespace DeerootCards.Cards
 {
     /// <summary>
     /// Sovereign: every time you block, a loyal bot spawns in front of you and
-    /// fights for you. Fixed default kit, 1 HP, unlimited hires.
+    /// fights for you. Fixed default kit, 1 HP, unlimited hires. The crown is
+    /// heavy: -20% max health, +0.25s gun reload, +2s block cooldown.
     ///
     /// Spawning follows the vanilla SpawnMinion recipe: a real player-clone
     /// (instantiated with PhotonNetwork.Instantiate so the game's own networking
@@ -36,8 +37,15 @@ namespace DeerootCards.Cards
     {
         public const string CardName = "Sovereign";
 
-        // Downside: block recharges this much slower (Block: (cooldown + cdAdd) * cdMultiplier).
+        // Downsides, all applied through the vanilla card applier
+        // (ApplyCardStats.ApplyStats): block.cdAdd adds to block recharge
+        // (Block: (cooldown + cdAdd) * cdMultiplier), statModifiers.health
+        // multiplies CharacterData.maxHealth, gun.reloadTimeAdd adds flat
+        // seconds to every reload (GunAmmo.GetReloadTime:
+        // (reloadTime + reloadTimeAdd) * reloadTimeMultiplier).
         private const float BlockCooldownAdd = 2f;
+        private const float HealthMultiplier = 0.8f;   // -20% max health
+        private const float ReloadTimeAdd = 0.25f;     // +0.25s per reload
 
         private static bool harmonyApplied;
 
@@ -53,8 +61,12 @@ namespace DeerootCards.Cards
 
         public override void SetupCard(CardInfo cardInfo, Gun gun, ApplyCardStats cardStats, CharacterStatModifiers statModifiers, Block block)
         {
-            // The holder pays a slower block recharge for an infinite bot army.
+            // The holder pays for an infinite bot army: slower block recharge,
+            // frailty, and sluggish reloads. These are TEMPLATE stats — the
+            // vanilla applier translates them on pick (see the constants above).
             block.cdAdd = BlockCooldownAdd;
+            statModifiers.health = HealthMultiplier;
+            gun.reloadTimeAdd = ReloadTimeAdd;
         }
 
         public override void OnAddCard(Player player, Gun gun, GunAmmo gunAmmo, CharacterData data, HealthHandler health, Gravity gravity, Block block, CharacterStatModifiers characterStats)
@@ -100,6 +112,20 @@ namespace DeerootCards.Cards
                     positive = false,
                     stat = "Block cooldown",
                     amount = "+2s",
+                    simepleAmount = CardInfoStat.SimpleAmount.Some
+                },
+                new CardInfoStat
+                {
+                    positive = false,
+                    stat = "Health",
+                    amount = "-20%",
+                    simepleAmount = CardInfoStat.SimpleAmount.Some
+                },
+                new CardInfoStat
+                {
+                    positive = false,
+                    stat = "Reload time",
+                    amount = "+0.25s",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 }
             };
