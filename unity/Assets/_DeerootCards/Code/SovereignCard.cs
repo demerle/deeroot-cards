@@ -61,6 +61,8 @@ namespace DeerootCards.Cards
 
         public override void SetupCard(CardInfo cardInfo, Gun gun, ApplyCardStats cardStats, CharacterStatModifiers statModifiers, Block block)
         {
+            // per-player unique: won't be re-offered once this player holds it
+            cardInfo.allowMultiple = false;
             // The holder pays for an infinite bot army: slower block recharge,
             // frailty, and sluggish reloads. These are TEMPLATE stats — the
             // vanilla applier translates them on pick (see the constants above).

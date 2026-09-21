@@ -23,6 +23,7 @@ Unity batch mode is the source of truth for compilation; grep the log for `error
 
 - **DON'T** set `statModifiers.attackSpeedMultiplier` in a CustomCard — it is *not copied off cards* (`CharacterStatModifiers.Attack Speed Multiplier`); it had zero effect.
 - **DO** set `gun.attackSpeed = 0.667f` (divided by the desired rate-boost factor). Gun.attackSpeed is the attack cooldown; card stats act as **multipliers** on the player's accumulated gun state, so 2/3 ≈ +50% attack rate. Verified working in-game.
+- **DO** set `cardInfo.allowMultiple = false` in `SetupCard` for per-player unique cards (verified in decompile): vanilla `CardChoice.SpawnUniqueCard` re-rolls a card the picker already holds; CardChoiceSpawnUniqueCardPatch (hard dependency) fixes vanilla's buggy flag logic and enforces the check correctly. Note scope: per-player pick-phase only — other players can still take the card. Applied to Portal, Heart, Invisibility, Shambles, Blink, Sovereign.
 
 ## Event-driven cards (verified in-game — Blink card worked end-to-end)
 

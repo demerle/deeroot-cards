@@ -75,7 +75,7 @@ namespace DeerootCards.Cards
             {
                 new CardInfoStat
                 {
-                    positive = false,
+                    positive = true,
                     stat = "Field duration",
                     amount = "+2.0s",
                     simepleAmount = CardInfoStat.SimpleAmount.Some

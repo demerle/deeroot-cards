@@ -25,6 +25,8 @@ namespace DeerootCards.Cards
     {
         public override void SetupCard(CardInfo cardInfo, Gun gun, ApplyCardStats cardStats, CharacterStatModifiers statModifiers, Block block)
         {
+            // per-player unique: won't be re-offered once this player holds it
+            cardInfo.allowMultiple = false;
             // downside: -25% movement speed (multiplier field; 0.75 = 75% of normal)
             statModifiers.movementSpeed = 0.75f;
             UnityEngine.Debug.Log($"[DEER] PortalCard SetupCard: setting movementSpeed to {statModifiers.movementSpeed}");

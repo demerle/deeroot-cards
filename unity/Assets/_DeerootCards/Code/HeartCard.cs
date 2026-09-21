@@ -26,6 +26,8 @@ namespace DeerootCards.Cards
     {
         public override void SetupCard(CardInfo cardInfo, Gun gun, ApplyCardStats cardStats, CharacterStatModifiers statModifiers, Block block)
         {
+            // per-player unique: won't be re-offered once this player holds it
+            cardInfo.allowMultiple = false;
             UnityEngine.Debug.Log("[DEER] HeartCard SetupCard");
         }
 

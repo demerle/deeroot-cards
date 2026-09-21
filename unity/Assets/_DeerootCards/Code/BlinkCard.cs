@@ -12,6 +12,8 @@ namespace DeerootCards.Cards
     {
         public override void SetupCard(CardInfo cardInfo, Gun gun, ApplyCardStats cardStats, CharacterStatModifiers statModifiers, Block block)
         {
+            // per-player unique: won't be re-offered once this player holds it
+            cardInfo.allowMultiple = false;
             // downside: flat 3s added to block cooldown — decompiled Block:
             // effective cooldown = (cooldown + cdAdd) * cdMultiplier, base 4s → 7s
             block.cdAdd = 3f;

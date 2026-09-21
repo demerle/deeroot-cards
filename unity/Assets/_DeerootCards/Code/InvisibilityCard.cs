@@ -54,6 +54,8 @@ namespace DeerootCards.Cards
 
         public override void SetupCard(CardInfo cardInfo, Gun gun, ApplyCardStats cardStats, CharacterStatModifiers statModifiers, Block block)
         {
+            // per-player unique: won't be re-offered once this player holds it
+            cardInfo.allowMultiple = false;
             // movementSpeed is a plain multiplier copied off cards (1.0 = no change).
             statModifiers.movementSpeed = MoveSpeedMult;
             UnityEngine.Debug.Log($"[DEER] InvisibilityCard SetupCard: movementSpeed {statModifiers.movementSpeed}");
