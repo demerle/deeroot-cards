@@ -624,7 +624,7 @@ namespace DeerootCards.Cards
             if (hudIconTex == null)
             {
                 // filled circle, sharp edge — deliberately NOT the portal ring look
-                hudIconTex = MakeCircleSprite(128, 0, 56, 64f).texture;
+                hudIconTex = AbilityHUD.MakeCircleTexture(128, 0, 56);
             }
         }
 
@@ -815,7 +815,7 @@ namespace DeerootCards.Cards
         {
             if (ringSprite == null)
             {
-                ringSprite = MakeCircleSprite(128, 44, 62, 64f);
+                ringSprite = PortalSprite(AbilityHUD.MakeCircleTexture(128, 44, 62));
             }
             return ringSprite;
         }
@@ -824,51 +824,17 @@ namespace DeerootCards.Cards
         {
             if (discSprite == null)
             {
-                discSprite = MakeCircleSprite(128, 0, 40, 64f);
+                discSprite = PortalSprite(AbilityHUD.MakeCircleTexture(128, 0, 40));
             }
             return discSprite;
         }
 
-        // Soft-edged anti-aliased circle/ring generated at runtime.
-        // innerR/outerR are in pixels; ppm converts pixels to world units
-        // (144 ppu ≈ game scale, matching the portal's ~1.9 world-unit diameter).
-        private static Sprite MakeCircleSprite(int size, float innerR, float outerR, float spritesPerUnit)
+        // Sprite.Create wrapper: 64 ppu converts pixels to world units ≈ game
+        // scale (matches the portal's ~1.9 world-unit diameter).
+        private static Sprite PortalSprite(Texture2D tex)
         {
-            Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false)
-            {
-                filterMode = FilterMode.Bilinear,
-                wrapMode = TextureWrapMode.Clamp
-            };
-            float center = size / 2f;
-            Color[] pixels = new Color[size * size];
-            for (int y = 0; y < size; y++)
-            {
-                for (int x = 0; x < size; x++)
-                {
-                    float dx = x + 0.5f - center;
-                    float dy = y + 0.5f - center;
-                    float r = Mathf.Sqrt(dx * dx + dy * dy);
-                    float alpha;
-                    if (r > outerR)
-                    {
-                        alpha = 0f;
-                    }
-                    else if (r >= innerR)
-                    {
-                        float soft = Mathf.Min((r - innerR) / 3f, (outerR - r) / 3f);
-                        alpha = Mathf.Clamp01(soft);
-                    }
-                    else
-                    {
-                        alpha = 1f;
-                    }
-                    pixels[y * size + x] = new Color(1f, 1f, 1f, alpha);
-                }
-            }
-            tex.SetPixels(pixels);
-            tex.Apply();
-            Sprite sprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), spritesPerUnit);
-            sprite.name = "DEERPortalRing";
+            Sprite sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 64f);
+            sprite.name = "DEERPortalSprite";
             return sprite;
         }
     }

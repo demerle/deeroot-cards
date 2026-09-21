@@ -127,6 +127,50 @@ public static class AbilityHUD
     }
 
     /// <summary>
+    /// Runtime-generated soft-edged anti-aliased circle texture, shared by the
+    /// HUD icons and any card effect that needs a disc/ring (Portal). innerR /
+    /// outerR are in pixels on a size×size texture: r &lt; innerR is fully
+    /// opaque, r &gt; outerR fully transparent, with a ~3px soft edge between.
+    /// </summary>
+    internal static Texture2D MakeCircleTexture(int size, float innerR, float outerR)
+    {
+        Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false)
+        {
+            filterMode = FilterMode.Bilinear,
+            wrapMode = TextureWrapMode.Clamp
+        };
+        float center = size / 2f;
+        Color[] pixels = new Color[size * size];
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float dx = x + 0.5f - center;
+                float dy = y + 0.5f - center;
+                float r = Mathf.Sqrt(dx * dx + dy * dy);
+                float alpha;
+                if (r > outerR)
+                {
+                    alpha = 0f;
+                }
+                else if (r >= innerR)
+                {
+                    float soft = Mathf.Min((r - innerR) / 3f, (outerR - r) / 3f);
+                    alpha = Mathf.Clamp01(soft);
+                }
+                else
+                {
+                    alpha = 1f;
+                }
+                pixels[y * size + x] = new Color(1f, 1f, 1f, alpha);
+            }
+        }
+        tex.SetPixels(pixels);
+        tex.Apply();
+        return tex;
+    }
+
+    /// <summary>
     /// The only place that computes layout: stacks all registered,
     /// currently-visible icons bottom-left, left to right. Draw order (and
     /// thus slot order) is registration order = card pick order, so new cards
