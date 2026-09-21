@@ -7,7 +7,7 @@ namespace DeerootCards
 {
     [BepInDependency("com.willis.rounds.unbound")]
     [BepInDependency("pykess.rounds.plugins.moddingutils")]
-    [BepInDependency("pykess.rounds.plugins.cardchoicespawnuniquecardpatch")]
+    [BepInDependency("pykess.rounds.plugins.pickncards")]
     [BepInPlugin("com.deeroot.cards", "DeerootCards", "0.0.1")]
     [BepInProcess("Rounds.exe")]
     public class DeerootCards : BaseUnityPlugin

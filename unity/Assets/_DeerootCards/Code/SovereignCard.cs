@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using HarmonyLib;
 using Photon.Pun;
 using UnboundLib;
@@ -210,6 +211,26 @@ namespace DeerootCards.Cards
         internal const float FireCooldownMax = 0.6f;
         internal const float AimCompensation = 0.02f; // up-bias per distance unit
 
+        // Default bot kit tuning — these are applied AFTER resetting the clone
+        // to vanilla defaults, so the bot is completely independent of the
+        // master's cards. Change these constants to tweak the bot's kit.
+        internal const float BotDamage = 1f;
+        internal const float BotProjectileSpeed = 1f;
+        internal const float BotProjectileSimulationSpeed = 1f;
+        internal const float BotAttackSpeed = 0.3f;
+        internal const float BotReloadTime = 1f;
+        internal const float BotKnockback = 1f;
+        internal const int BotMaxAmmo = 3;
+        internal const int BotNumberOfProjectiles = 1;
+        internal const int BotBursts = 0;
+        internal const int BotReflects = 0;
+
+        internal const float BotMovementSpeed = 1f;
+        internal const float BotJump = 1f;
+        internal const float BotGravity = 1f;
+        internal const float BotSizeMultiplier = 1f;
+        internal const float BotHealthMultiplier = 1f;
+
         private class BotEntry
         {
             public CharacterData Bot;
@@ -260,6 +281,100 @@ namespace DeerootCards.Cards
             StartCoroutineDeferred(botViewID, masterPlayerID, new Vector3(spawnPosX, spawnPosY, 0f));
         }
 
+        /// <summary>
+        /// Resets the bot's gun, character stats, and block to vanilla defaults,
+        /// then applies the tunable bot-kit constants. This makes the bot's
+        /// stats completely independent of whatever cards the master has picked.
+        /// </summary>
+        private static void ResetBotToDefaultKit(CharacterData bot)
+        {
+            // Pre-flight: Gun.ResetStats() dereferences the private `gunAmmo`
+            // field, which Gun only assigns in its own Start() — our config can
+            // run before that, so the reset would NRE (verified in playtest:
+            // the NRE aborted ConfigureBot and left brainless, passive bots).
+            // Patch it exactly like Gun.Start() does, before FullReset().
+            if (bot.weaponHandler != null && bot.weaponHandler.gun != null)
+            {
+                var gun = bot.weaponHandler.gun;
+                var gunAmmoField = AccessTools.Field(typeof(Gun), "gunAmmo");
+                if (gunAmmoField != null && gunAmmoField.GetValue(gun) == null)
+                {
+                    gunAmmoField.SetValue(gun, gun.GetComponentInChildren<GunAmmo>());
+                }
+            }
+            // Same class of problem: CharacterStatModifiers.ResetStats iterates
+            // objectsAddedToPlayer (public field, initialized on first use).
+            if (bot.stats != null && bot.stats.objectsAddedToPlayer == null)
+            {
+                bot.stats.objectsAddedToPlayer = new List<GameObject>();
+            }
+
+            // Player.FullReset() is internal; use reflection (same idiom as the
+            // rest of the mod). It resets gun, CharacterStatModifiers, and block.
+            // Wrapped so a vanilla reset hiccup can never again abort bot
+            // configuration — the kit constants below still produce a working
+            // default bot on their own.
+            try
+            {
+                var fullReset = typeof(Player).GetMethod(
+                    "FullReset",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+
+                if (fullReset != null)
+                {
+                    fullReset.Invoke(bot.player, null);
+                }
+                else
+                {
+                    UnityEngine.Debug.LogError("[DEER] Sovereign: could not reflect Player.FullReset; bot may inherit master stats.");
+                }
+            }
+            catch (System.Exception e)
+            {
+                UnityEngine.Debug.LogError($"[DEER] Sovereign: FullReset failed, continuing with kit constants: {e.Message}");
+            }
+
+            // Apply the tunable bot kit on top of vanilla defaults.
+            if (bot.weaponHandler != null && bot.weaponHandler.gun != null)
+            {
+                var gun = bot.weaponHandler.gun;
+                gun.damage = BotDamage;
+                gun.projectileSpeed = BotProjectileSpeed;
+                gun.projectielSimulatonSpeed = BotProjectileSimulationSpeed;
+                gun.attackSpeed = BotAttackSpeed;
+                gun.reloadTime = BotReloadTime;
+                gun.knockback = BotKnockback;
+                gun.numberOfProjectiles = BotNumberOfProjectiles;
+                gun.bursts = BotBursts;
+                gun.reflects = BotReflects;
+
+                var gunAmmo = gun.GetComponentInChildren<GunAmmo>();
+                if (gunAmmo != null)
+                {
+                    gunAmmo.maxAmmo = BotMaxAmmo;
+                    gunAmmo.ReDrawTotalBullets();
+                }
+            }
+
+            if (bot.stats != null)
+            {
+                bot.stats.movementSpeed = BotMovementSpeed;
+                bot.stats.jump = BotJump;
+                bot.stats.gravity = BotGravity;
+                bot.stats.sizeMultiplier = BotSizeMultiplier;
+                bot.stats.health = BotHealthMultiplier;
+            }
+
+            // FullReset() sets health/maxHealth to 100; re-apply the bot's 1 HP.
+            bot.maxHealth = BotMaxHealth;
+            bot.health = BotMaxHealth;
+
+            // Re-apply size/mass now that we've overridden the stat multipliers.
+            bot.stats?.WasUpdated();
+
+            UnityEngine.Debug.Log($"[DEER] Sovereign: bot kit reset to defaults (HP {bot.maxHealth}, damage {bot.weaponHandler?.gun?.damage}, projectileSpeed {bot.weaponHandler?.gun?.projectileSpeed})");
+        }
+
         private static void ConfigureBot(int masterPlayerID, int botViewID, Vector3 spawnPos)
         {
             var view = PhotonNetwork.GetPhotonView(botViewID);
@@ -293,8 +408,6 @@ namespace DeerootCards.Cards
             bot.SetAI(master);
             bot.isPlaying = true;
             bot.healthHandler.DestroyOnDeath = true;
-            bot.maxHealth = BotMaxHealth;
-            bot.health = BotMaxHealth;
 
             var skin = bot.GetComponentInChildren<PlayerSkinHandler>(true);
             if (skin != null)
@@ -326,6 +439,10 @@ namespace DeerootCards.Cards
                 var brain = bot.gameObject.AddComponent<SovereignBotBrain>();
                 brain.Init(master, masterPlayerID);
             }
+
+            // Kit reset LAST: even if the vanilla reset throws (it's wrapped,
+            // but belt-and-braces), the bot above is already fully alive.
+            ResetBotToDefaultKit(bot);
 
             // Position fix: every fresh player-prefab instantiate fires
             // PlayerManager.PlayerJoined (from Player.Start); the sandbox
@@ -397,6 +514,9 @@ namespace DeerootCards.Cards
                 }
                 yield return null;
             }
+            // Let the clone's first Awake/Start cycle finish (Gun.Start assigns
+            // its private gunAmmo field, etc.) before we reset its kit.
+            yield return null;
             ConfigureBot(masterPlayerID, botViewID, spawnPos);
         }
 
