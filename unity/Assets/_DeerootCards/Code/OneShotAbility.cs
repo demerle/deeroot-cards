@@ -211,21 +211,36 @@ namespace DeerootCards.Cards
                 ?.SetValue(ph, view.IsMine);
 
             // Kill credit / damage attribution, copied off Gun.ApplyPlayerStuff.
+            // CRITICAL (the "ricochet" bug): vanilla bullets get their
+            // SpawnedAttack added by BulletInit BEFORE ProjectileHit.Start
+            // caches it into the PRIVATE spawnedAttack field; RPCA_DoHit
+            // reads spawnedAttack.spawner.data on every physics-object impact
+            // (ProjectileHit.cs:314/323). We skip BulletInit, so add the
+            // component here AND reflect it into the private field, or the
+            // impact path NullReferenceExceptions before DestroyMe() and the
+            // meteor never dies — it re-hits the map every frame.
             Player caster = ResolveCaster(casterPlayerID);
+            var spawned = GetComponent<SpawnedAttack>();
+            if (spawned == null)
+            {
+                spawned = gameObject.AddComponent<SpawnedAttack>();
+            }
             if (caster != null)
             {
-                ph.ownPlayer = caster;
-                var spawned = GetComponent<SpawnedAttack>();
-                if (spawned == null)
-                {
-                    spawned = gameObject.AddComponent<SpawnedAttack>();
-                }
                 spawned.spawner = caster;
+                spawned.attackID = caster.data.weaponHandler.gun.attackID;
+                ph.ownPlayer = caster;
+                // Vanilla also team-colors the impact particles (cosmetic).
+                ph.team = PlayerSkinBank.GetPlayerSkinColors(caster.playerID);
+                SetTeamColor.TeamColorThis(gameObject, ph.team);
             }
             else
             {
                 UnityEngine.Debug.LogWarning("[DEER] MeteorProjectileInit could not resolve caster — no kill credit");
             }
+            typeof(ProjectileHit)
+                .GetField("spawnedAttack", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                ?.SetValue(ph, spawned);
 
             // Lifetime guard: if it somehow misses everything, clean up on the
             // owner client (the one that may PhotonNetwork.Destroy).

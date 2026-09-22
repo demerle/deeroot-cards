@@ -25,11 +25,12 @@ namespace DeerootCards.Cards
 
         // Fixed meteor stats (no gun stats involved — verifiable in
         // decompiled Gun.cs ApplyProjectileStats, which we deliberately skip).
-        internal const float BaseSpeed = 25f;   // 50% of the vanilla bullet speed 50 (Bullet_Base localForce)
-        internal const float BaseDamage = 500f;
+        internal const float BaseSpeed = 20f;   // 40% of the vanilla bullet speed 50 (Bullet_Base localForce)
+        internal const float BaseDamage = 1200f;
         // ProjectileHit.Start scales force by (damage/55)^2; pick a pre-scale
-        // value that lands at ~3x a vanilla 55-damage bullet's 5000 knockback.
-        internal const float BaseForce = 180f;
+        // value that lands at ~3x a vanilla 55-damage bullet's 5000 knockback
+        // at the current damage (1200^2/55^2 = 476 ⇒ 31 * 476 ≈ 15k).
+        internal const float BaseForce = 31f;
 
         // Bullet_Base's serialized prefab damage — the size the bullet's own
         // Start() cached before we rescale (OneShotAbility.TrailSizeFromDamage).
@@ -90,14 +91,14 @@ namespace DeerootCards.Cards
                 {
                     positive = true,
                     stat = "Damage",
-                    amount = "500",
-                    simepleAmount = CardInfoStat.SimpleAmount.aLotOf
+                    amount = "1200",
+                    simepleAmount = CardInfoStat.SimpleAmount.aHugeAmountOf
                 },
                 new CardInfoStat
                 {
                     positive = false,
                     stat = "Projectile Speed",
-                    amount = "50%",
+                    amount = "40%",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 },
                 new CardInfoStat
