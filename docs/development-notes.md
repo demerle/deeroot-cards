@@ -144,10 +144,6 @@ The game code is already decompiled on the linux drive:
 
 - **Duplicating a self-contained card ("Simulacrum" = full copy of Sovereign, SimulacrumCard.cs, compiled clean)**: a card file that owns ALL its classes (card + effect + bot factory + brain + runner + Harmony patch) duplicates with a simple sed rename `Sovereign→Simulacrum`. Key: use a DIFFERENT Harmony instance ID (`com.deeroot.cards.simulacrum`) per copy; the duplicate `RPCA_DoHit` prefix and duplicate `GameModeManager.AddHook` round-reset hooks are harmless/redundant — each registry (SovereignBot vs SimulacrumBot.bots) is distinct and both patches' `IsBot` checks gate on their own bots only. Register in `DeerootCards.cs` with its own `Init()` + `CustomCard.BuildCard`.
 
-## Card duplication pattern (Simulacrum = copy of Sovereign)
-
-- **Duplicating a self-contained card ("Simulacrum" = full copy of Sovereign, SimulacrumCard.cs, compiled clean)**: a card file that owns ALL its classes (card + effect + bot factory + brain + runner + Harmony patch) duplicates with a simple sed rename `Sovereign→Simulacrum`. Key: use a DIFFERENT Harmony instance ID (`com.deeroot.cards.simulacrum`) per copy; the duplicate `RPCA_DoHit` prefix and duplicate `GameModeManager.AddHook` round-reset hooks are harmless/redundant — each registry (SovereignBot vs SimulacrumBot.bots) is distinct and both patches' `IsBot` checks gate on their own bots only. Register in `DeerootCards.cs` with its own `Init()` + `CustomCard.BuildCard`.
-
 ## Tooling
 
 - Test logs readable directly at `~/.config/r2modmanPlus-local/ROUNDS/profiles/dev/BepInEx/LogOutput.log` (r2modman dev profile, no need for the user to paste).
