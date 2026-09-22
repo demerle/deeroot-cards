@@ -45,7 +45,7 @@ namespace DeerootCards.Cards
                 {
                     positive = true,
                     stat = "All Ability Cooldowns",
-                    amount = "-25%",
+                    amount = "-50%",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 }
             };
@@ -73,9 +73,9 @@ namespace DeerootCards.Cards
     }
 
     /// <summary>
-    /// "Power Up": +25% damage. Vanilla stat card — Gun.damage is copied off
+    /// "Power Up": +50% damage. Vanilla stat card — Gun.damage is copied off
     /// cards (multiplier on the player's accumulated damage), so stacking
-    /// copies multiplies ×1.25 each. Compensation default for any per-player
+    /// copies multiplies ×1.5 each. Compensation default for any per-player
     /// unique card that is not one of this mod's ability cards (DoubleCard
     /// registry), including vanilla uniques.
     /// </summary>
@@ -85,8 +85,8 @@ namespace DeerootCards.Cards
 
         public override void SetupCard(CardInfo cardInfo, Gun gun, ApplyCardStats cardStats, CharacterStatModifiers statModifiers, Block block)
         {
-            // +25% damage (multiplier field; 1.25 = 125% of normal)
-            gun.damage = 1.25f;
+            // +50% damage (multiplier field; 1.5 = 150% of normal)
+            gun.damage = 1.5f;
             UnityEngine.Debug.Log($"[DEER] PowerUpCard SetupCard: setting gun.damage to {gun.damage}");
         }
 
@@ -114,7 +114,7 @@ namespace DeerootCards.Cards
                 {
                     positive = true,
                     stat = "Damage",
-                    amount = "+25%",
+                    amount = "+50%",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 }
             };

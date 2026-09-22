@@ -33,7 +33,8 @@ namespace DeerootCards.Cards
         private static readonly (string cardName, float add)[] Sources =
         {
             ("Quick Attack", 0.25f), // +25% ability cooldowns (Quick Attack downside)
-            ("Ability Up", -0.25f), // -25% ability cooldowns (Double's unique-card compensation)
+            ("Heart", 0.5f), // +50% ability cooldowns (Heart downside)
+            ("Ability Up", -0.5f), // -50% ability cooldowns (Double's unique-card compensation)
         };
 
         // Safety floor: cooldown multiplier can never drop below ×0.1 (ability

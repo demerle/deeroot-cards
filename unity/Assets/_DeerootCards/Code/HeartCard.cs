@@ -68,6 +68,13 @@ namespace DeerootCards.Cards
                     stat = "Throw Heart",
                     amount = "H (once per round)",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
+                },
+                new CardInfoStat
+                {
+                    positive = false,
+                    stat = "All Ability Cooldowns",
+                    amount = "+50%",
+                    simepleAmount = CardInfoStat.SimpleAmount.Some
                 }
             };
         }
