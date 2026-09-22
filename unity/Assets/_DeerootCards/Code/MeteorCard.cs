@@ -31,6 +31,10 @@ namespace DeerootCards.Cards
         // value that lands at ~3x a vanilla 55-damage bullet's 5000 knockback.
         internal const float BaseForce = 180f;
 
+        // Bullet_Base's serialized prefab damage — the size the bullet's own
+        // Start() cached before we rescale (OneShotAbility.TrailSizeFromDamage).
+        internal const float PrefabStockDamage = 55f;
+
         public override void SetupCard(CardInfo cardInfo, Gun gun, ApplyCardStats cardStats, CharacterStatModifiers statModifiers, Block block)
         {
             // per-player unique: won't be re-offered once this player holds it
@@ -214,7 +218,9 @@ namespace DeerootCards.Cards
 
             UnityEngine.Debug.Log("[DEER] Meteor trigger");
 
-            // cursor -> world (verified Shambles recipe)
+            // cursor -> world (verified Shambles recipe) for the horizontal
+            // anchor; the VERTICAL anchor is the top edge of the screen — the
+            // meteor must come from the ceiling regardless of cursor height.
             Vector3 mouse = Input.mousePosition;
             Camera cam = Camera.main;
             if (cam == null)
@@ -223,6 +229,8 @@ namespace DeerootCards.Cards
             }
             Vector3 cursor = cam.ScreenToWorldPoint(new Vector3(mouse.x, mouse.y, -cam.transform.position.z));
             cursor.z = 0f;
+            Vector3 screenTop = cam.ScreenToWorldPoint(new Vector3(mouse.x, cam.pixelHeight, -cam.transform.position.z));
+            Vector3 spawnAnchor = new Vector3(cursor.x, screenTop.y + 0.5f, 0f);
 
             // Master the spawn path on every client; only the caster's client
             // calls the networked PhotonNetwork.Instantiate (it synchronizes
@@ -231,7 +239,7 @@ namespace DeerootCards.Cards
                 typeof(MeteorEffect),
                 nameof(RPC_MeteorStrike),
                 player.playerID,
-                cursor
+                spawnAnchor
             );
 
             // Consume the card immediately: the meteor is already in the air.
@@ -257,7 +265,7 @@ namespace DeerootCards.Cards
                 return;
             }
 
-            Vector3 spawnPos = targetPos + Vector3.up * 4f;
+            Vector3 spawnPos = targetPos; // anchor is already at the screen top
             GameObject bullet = PhotonNetwork.Instantiate("Bullet_Base", spawnPos, Quaternion.identity, 0);
             if (bullet == null)
             {

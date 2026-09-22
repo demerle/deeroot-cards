@@ -169,6 +169,40 @@ namespace DeerootCards.Cards
             ph.force = force;
             ph.stun = damage / 150f;
 
+            // Bullet visuals + detection radius are spawn-time caches sized for
+            // the prefab's stock ~55 damage (RayCastTrail.Start caches the size,
+            // SetScaleFromSizeAndExtraSize.Start scales the sprite exactly once).
+            // Our config runs AFTER those Starts, so re-scale to the fixed
+            // meteor damage with the Full-Counter recipe (vanilla RayHitReflect
+            // idiom: ratio-rescale sprite, rewrite trail.size, Rescale()).
+            RayCastTrail trail = GetComponent<RayCastTrail>();
+            if (trail == null)
+            {
+                trail = GetComponentInParent<RayCastTrail>();
+            }
+            if (trail != null)
+            {
+                float oldTrailSize = TrailSizeFromDamage(MeteorCard.PrefabStockDamage, trail.extraSize);
+                float newTrailSize = TrailSizeFromDamage(ph.damage, trail.extraSize);
+                SetScaleFromSizeAndExtraSize spriteScaler =
+                    GetComponentInChildren<SetScaleFromSizeAndExtraSize>(true);
+                if (spriteScaler != null && oldTrailSize > 0.0001f)
+                {
+                    spriteScaler.transform.localScale *= newTrailSize / oldTrailSize;
+                }
+                trail.size = newTrailSize;
+                ScaleTrailFromDamage trailWidth = GetComponent<ScaleTrailFromDamage>();
+                if (trailWidth == null)
+                {
+                    trailWidth = GetComponentInDisabled<ScaleTrailFromDamage>(gameObject);
+                }
+                if (trailWidth != null)
+                {
+                    trailWidth.Rescale();
+                }
+                UnityEngine.Debug.Log($"[DEER] Meteor rescaled for damage {damage}: size {oldTrailSize:F2} -> {newTrailSize:F2}");
+            }
+
             // Only the spawner's owner client gets "damage control"
             // (vanilla ApplyProjectileStats sets hasControl via CheckIsMine();
             // the field is internal so write it via reflection).
@@ -201,6 +235,48 @@ namespace DeerootCards.Cards
             }
 
             UnityEngine.Debug.Log($"[DEER] Meteor configured: viewID {bulletView.ViewID} velocity {velocity} damage {damage} force {force}");
+        }
+
+        // Exact formula from RayCastTrail.Start (verified against decompile;
+        // copied from FullCounterCard where it was verified in a debug round).
+        private static float TrailSizeFromDamage(float damage, float extraSize)
+        {
+            return Mathf.Clamp(Mathf.Pow(damage, 0.85f) / 400f, 0f, 100f) + 0.3f + extraSize;
+        }
+
+        // GetComponentInChildren(false) skips inactive children — pooled
+        // recycled bullets can be — same resolver as FullCounterCard.
+        private static T GetComponentInDisabled<T>(GameObject root) where T : Component
+        {
+            T direct = root.GetComponent<T>();
+            if (direct != null)
+            {
+                return direct;
+            }
+            T[] all = root.GetComponentsInChildren<T>(true);
+            if (all == null || all.Length == 0)
+            {
+                return null;
+            }
+            Transform rootT = root.transform;
+            T best = null;
+            int bestDepth = int.MaxValue;
+            foreach (T comp in all)
+            {
+                int depth = 0;
+                Transform t = comp.transform.parent;
+                while (t != null && t != rootT)
+                {
+                    depth++;
+                    t = t.parent;
+                }
+                if (t == rootT && depth < bestDepth)
+                {
+                    bestDepth = depth;
+                    best = comp;
+                }
+            }
+            return best;
         }
 
         private System.Collections.IEnumerator DestroyLater(float seconds)
