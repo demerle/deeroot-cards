@@ -168,6 +168,21 @@ The game code is already decompiled on the linux drive:
 - Bullet post-swap continuation: an enemy bullet swapped to your old spot keeps flying along its original direction past it; `holdPlayerFor`/`playersHit` self-hit interactions with own bullets are a playtest gate.
 - HUD: AbilityHUD recipe, orange ready / dark gray cooldown, key caption + 6s countdown (`BaseCooldown` consumed via `AbilityCooldowns.Apply`).
 
+## One-time-use ability cards (OneShotAbility.cs; compiled clean, runtime playtest pending)
+
+- **Shared one-shot registry**: `OneShotAbility.IsOneShot(cardName)` classifies cards that consume themselves after one use ("Meteor" currently). Keep it in sync with new one-shot cards.
+- **Consume path = proven Delete-card removal recipe** (`OneShotAbility.Consume`): broadcast `[UnboundRPC] RPCA_OneShotConsume(playerID, cardName)` → `RebuildGuard.Mark()` FIRST (swallows rebuild re-add echoes) → master-client/offline-only executes `Cards.instance.RemoveCardFromPlayer(target, idx, true)` with the index resolved FRESH by `cardName` (identity-immune). Cancelled/already-gone card just logs loudly and no-ops.
+- **Do NOT suppress the Meteor OnAddCard via RebuildGuard** — unlike Delete, a rebuild triggered by other players' removals legitimately re-arms the still-held Meteor. The consumed card is gone BEFORE the rebuild, so nothing re-arms it.
+- HUD is the AbilityHUD standard with NO cooldown state (ready forever until used; key caption "C").
+- Keybind table (per-CLIENT resolve, split-screen P2 variant): F/G Shambles (G also Heart P2), E/Q Portal, T/Y Invisibility, H/G Heart, C/V Meteor (update when adding a new ability card — pick an UNUSED key).
+
+## Meteor card (MeteorCard.cs; compiled clean, runtime playtest pending)
+
+- **First one-shot ability card**: `C` (P2: `V`) → meteor falls from ~4 units above the cursor at fixed stats — damage 500, initial speed 25 (= 50% of Bullet_Base's default 50), Bullet_Base's built-in gravity (100) accelerates it like a real meteor, ~3x vanilla-bullet knockback (`BaseForce = 180` pre-scaled; `ProjectileHit.Start` multiplies force by `(damage/55)²`, so 500 damage ⇒ ×82.6 — direct high force would be a nuke, tune `BaseForce` not `damage`).
+- **Manual-networked bullet recipe (verified against decompiled Gun.cs FireBurst/ApplyPlayerStuff, NOT reusing ProjectileInit — that applies the caster's gun stats, which would break fixed damage):` caster's client only calls `PhotonNetwork.Instantiate("Bullet_Base", spawnPos, identity)` (PUN synchronizes creation to all clients; prefab resolves from `Resources/`), then broadcasts `RPC_MeteorConfigure(viewID, casterID, velocity, damage, force)` — every client adds `MeteorProjectileInit`, which in `Start` (ordering-safe: later-added component starts after the bullet's own components; re-asserted on first Update) sets: `MoveTransform.DontRunStart = true` (kills the serialized `localForce` forward launch), `velocity` + `LookRotation`, `ProjectileHit.damage/force/stun`, `hasControl = view.IsMine` (field is INTERNAL → reflection), `SpawnedAttack.spawner` + `ProjectileHit.ownPlayer` = caster (kill credit, Gun.ApplyPlayerStuff recipe). Same PUN instantiate→RPC ordering as vanilla relies on.
+- **This card has NO cooldown** — the card consumes itself immediately after the cast (`OneShotAbility.Consume` runs right after the strike RPC; meteor stays airborne and can still be blocked by the caster's own block). If it fizzles (nothing hit), the card stays consumed.
+- Stats card lines: damage 500, projectile speed 50%, uses 1. `allowMultiple = false` (per-player unique, per ability-card conventions) and `"Meteor"` added to `DoubleCard.AbilityCardNames` (compensates with Ability Up).
+
 ## Double bonus-card compensation (DoubleCard + BonusCards.cs; compiled clean, runtime playtest pending)
 
 - Double consumed on a per-player-unique pick (`!added.allowMultiple`): no duplicate copy; Double applies a bonus card via the existing `RPCA_DoubleApply(name, copies)` channel instead — "Ability Up" (-25% all ability cooldowns) for this mod's ability cards, "Power Up" (+25% damage, `gun.damage *= 1.25f`) for everything else (vanilla/other-mod uniques included). Classification: `DoubleCard.IsAbilityCard` — static HashSet by exact cardName ("Portals", "Heart", "Invisibility", "Shambles", "Blink", "Sovereign"); keep it in sync with new ability cards.

@@ -22,7 +22,7 @@ namespace DeerootCards.Cards
         internal static readonly System.Collections.Generic.HashSet<string> AbilityCardNames =
             new System.Collections.Generic.HashSet<string>
             {
-                "Portals", "Heart", "Invisibility", "Shambles", "Blink", "Sovereign"
+                "Portals", "Heart", "Invisibility", "Shambles", "Blink", "Sovereign", "Meteor"
             };
 
         internal static bool IsAbilityCard(CardInfo card)

@@ -40,6 +40,7 @@ namespace DeerootCards
             CustomCard.BuildCard<AbilityUpCard>();
             CustomCard.BuildCard<PowerUpCard>();
             CustomCard.BuildCard<SlowAndSteadyCard>();
+            CustomCard.BuildCard<MeteorCard>();
         }
 
         void Start()
