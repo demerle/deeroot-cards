@@ -25,6 +25,7 @@ namespace DeerootCards
             Cards.SimulacrumCard.Init(); // applies the Simulacrum friendly-fire gates
             Cards.DynamicFieldCard.Init(); // no patches — vanilla block event drives the field
             Cards.FullCounterCard.Init(); // doubles damage inside Block.blocked, including own bullets
+            Cards.AmpWallCard.Init(); // applies the amp-wall MoveTransform bullet patch
             CustomCard.BuildCard<OverdriveCard>();
             CustomCard.BuildCard<BlinkCard>();
             CustomCard.BuildCard<DiveCard>();
@@ -38,6 +39,7 @@ namespace DeerootCards
             CustomCard.BuildCard<DynamicFieldCard>();
             CustomCard.BuildCard<InvisibilityCard>();
             CustomCard.BuildCard<FullCounterCard>();
+            CustomCard.BuildCard<AmpWallCard>();
             CustomCard.BuildCard<ShamblesCard>();
             CustomCard.BuildCard<AbilityUpCard>();
             CustomCard.BuildCard<PowerUpCard>();
