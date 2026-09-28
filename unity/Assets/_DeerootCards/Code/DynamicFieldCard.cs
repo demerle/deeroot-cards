@@ -8,7 +8,18 @@ namespace DeerootCards.Cards
     /// <summary>
     /// Dynamic Field: looks like vanilla Static Field, but the field FOLLOWS the
     /// caster (always centered on them). In exchange it is half the size and
-    /// only lasts 3 seconds. Same +0.25s block cooldown as the vanilla card.
+    /// only lasts 3 seconds; damage per pulse stays at vanilla parity. Same
+    /// +0.25s block cooldown as the vanilla card.
+    ///
+    /// Stacking: each extra copy doubles the field's size AND its pulse damage
+    /// (the vanilla prefab ties both to localScale.x via Explosion
+    /// scaleRadius/scaleDmg), so 2 copies = full vanilla size, 2x vanilla
+    /// per-pulse damage. The size downgrade itself is damage-neutral: we
+    /// divide Explosion.damage by the size factor on the spawned clone
+    /// ((damage/0.5) × (0.5×stacks) = stacks → vanilla parity per copy).
+    /// The +0.25s block-cooldown downside stacks by itself (vanilla additive
+    /// stat application). The count is read at spawn time from
+    /// CharacterData.currentCards by cardName, so removals downsize correctly.
     ///
     /// Fidelity by reuse (same philosophy as Sovereign's player-clone): at
     /// first block we extract the REAL vanilla field prefab from the vanilla
@@ -52,11 +63,10 @@ namespace DeerootCards.Cards
 
         public override void OnRemoveCard(Player player, Gun gun, GunAmmo gunAmmo, CharacterData data, HealthHandler health, Gravity gravity, Block block, CharacterStatModifiers characterStats)
         {
-            var effect = player.GetComponent<DynamicFieldEffect>();
-            if (effect != null)
-            {
-                Destroy(effect);
-            }
+            // Stacking: never destroy the effect component here — removing one
+            // copy while another remains would silently kill the field. At zero
+            // stacks the component is a harmless no-op (SpawnField reads the
+            // live deck on every block and returns early).
         }
 
         protected override string GetTitle()
@@ -66,7 +76,7 @@ namespace DeerootCards.Cards
 
         protected override string GetDescription()
         {
-            return "Half-sized Static field that follows you but doesnt last as long";
+            return "Half-sized Static field that follows you — same damage, but doesnt last as long. Each extra copy doubles its size";
         }
 
         protected override CardInfoStat[] GetStats()
@@ -76,8 +86,15 @@ namespace DeerootCards.Cards
                 new CardInfoStat
                 {
                     positive = true,
+                    stat = "Field size",
+                    amount = "x2 per extra card",
+                    simepleAmount = CardInfoStat.SimpleAmount.Some
+                },
+                new CardInfoStat
+                {
+                    positive = true,
                     stat = "Field duration",
-                    amount = "+2.0s",
+                    amount = "+3.0s",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 },
                 new CardInfoStat
@@ -112,18 +129,20 @@ namespace DeerootCards.Cards
     }
 
     /// <summary>
-    /// Per-player hook: spawns the (halved, 3-second, following) field on the
-    /// vanilla block event. Deliberately does NOT gate on IsMine — the block
-    /// event is RpcTarget.All, and vanilla SpawnObjects semantics are "every
-    /// client spawns its own local copy".
+    /// Per-player hook: spawns the (halved-per-stack, 3-second, following)
+    /// field on the vanilla block event. Deliberately does NOT gate on IsMine
+    /// — the block event is RpcTarget.All, and vanilla SpawnObjects semantics
+    /// are "every client spawns its own local copy".
     /// </summary>
     public class DynamicFieldEffect : MonoBehaviour
     {
         private const string VanillaStaticFieldName = "static field";
 
-        // Downgrades vs the vanilla field.
+        // Downgrades vs the vanilla field (size + duration only; damage per
+        // pulse is kept at vanilla parity by decoupling it from the size
+        // scale — see SpawnField).
         private const float SizeMultiplier = 0.5f; // half the vanilla radius
-        private const float Duration = 2f;         // seconds, then despawn
+        private const float Duration = 3f;         // seconds, then despawn
 
         private static GameObject vanillaFieldPrefab;
 
@@ -190,6 +209,18 @@ namespace DeerootCards.Cards
 
         private static void SpawnField(Player master)
         {
+            // Stacks first: each extra copy of the card doubles the field's
+            // size and pulse damage (both ride localScale.x in the vanilla
+            // prefab — Explosion.scaleRadius/scaleDmg are set). Read at spawn
+            // time so the time-stop resume path picks up the live deck; zero
+            // stacks (every copy removed) means no field at all.
+            int stacks = CountStacks(master);
+            if (stacks <= 0)
+            {
+                return;
+            }
+            float sizeMultiplier = SizeMultiplier * stacks;
+
             var prefab = GetVanillaFieldPrefab();
             if (prefab == null)
             {
@@ -208,27 +239,63 @@ namespace DeerootCards.Cards
             }
             spawned.spawner = master;
 
-            // --- Downgrade 1: half the vanilla size. PlayerInRangeTrigger reads
+            // --- Size: half vanilla per stack. PlayerInRangeTrigger reads
             // `range * root.localScale.x` when scaleWithRange is set, so scaling
-            // the root halves everything only if that flag is true; patch the
+            // the root scales everything only if that flag is true; patch the
             // trigger manually when it isn't to avoid a silently full-size field.
             var triggers = go.GetComponentsInChildren<PlayerInRangeTrigger>(true);
             foreach (var trigger in triggers)
             {
                 if (!trigger.scaleWithRange)
                 {
-                    trigger.range *= SizeMultiplier;
+                    trigger.range *= sizeMultiplier;
                 }
             }
-            go.transform.localScale *= SizeMultiplier;
+            go.transform.localScale *= sizeMultiplier;
 
-            // --- Downgrade 2: dies after 2 seconds (on every client, since each
-            // client owns its local copy).
+            // --- Damage: the prefab ties pulse damage to scale
+            // (Explosion.scaleDmg: 1 — DoExplosionEffects multiplies damage by
+            // localScale.x), so the size downgrade silently halved it too and
+            // the field barely scratched anyone (playtest numbers: vanilla
+            // Static Field ~100 total damage over 5s, ours ~20 over 2s).
+            // Divide damage by the size factor on the spawned CLONE (the
+            // prefab asset is never touched) to restore vanilla per-pulse
+            // damage: (damage/0.5) × (0.5×stacks) = stacks per pulse.
+            foreach (var explosion in go.GetComponentsInChildren<Explosion>(true))
+            {
+                explosion.damage /= SizeMultiplier;
+            }
+
+            // --- Duration: dies after 3 seconds regardless of stacks (on
+            // every client, since each client owns its local copy).
             Object.Destroy(go, Duration);
 
             go.AddComponent<DynamicFieldFollower>().Init(master);
 
-            UnityEngine.Debug.Log($"[DEER] DynamicField spawned for master {master.playerID}, prefab {prefab.name}, triggers {triggers.Length}");
+            UnityEngine.Debug.Log($"[DEER] DynamicField spawned for master {master.playerID}, prefab {prefab.name}, triggers {triggers.Length}, stacks {stacks} (size x{sizeMultiplier})");
+        }
+
+        // Stack count = how many copies of this card the holder's deck carries.
+        // Match by cardName, never instance identity — the pick-clone is NOT the
+        // instance stored in currentCards (that is sourceCard, the registered
+        // prefab; see BouncyBallCard's SetupCard note). Same OrdinalIgnoreCase
+        // scan as AbilityCooldowns.GetModifier.
+        private static int CountStacks(Player player)
+        {
+            if (player == null || player.data == null || player.data.currentCards == null)
+            {
+                return 0;
+            }
+            int count = 0;
+            foreach (CardInfo card in player.data.currentCards)
+            {
+                if (card != null && card.cardName != null &&
+                    string.Equals(card.cardName, DynamicFieldCard.CardName, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    count++;
+                }
+            }
+            return count;
         }
 
         private static GameObject GetVanillaFieldPrefab()
