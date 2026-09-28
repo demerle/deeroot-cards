@@ -188,6 +188,38 @@ The game code is already decompiled on the linux drive:
 - **Frozen cooldowns need zero work**: `Block.Update` ticks `sinceBlock`/`counter`
   via `TimeHandler.deltaTime` (frozen), reload + free-reload + `RemoveAfterSeconds`
   lifetimes likewise — everything recharges from its frozen value on resume.
+- **Parked bullets are HARMLESS: gate `RayCastTrail.Update`** (playtest-fixed: zero
+  muzzle self-harm): `RayCastTrail.Update` is the ONLY projectile impact path — it
+  owns every `rayHit.Hit` call (walls + players). Zero-length casts are NOT safe:
+  `Physics2D.CircleCastAll` at distance 0 still returns anything OVERLAPPING the
+  bullet's circle, and RayCastTrail's own-root skip only rejects the projectile's
+  own child colliders, never the shooter — the parked muzzle bullet hit its owner.
+  Fix: prefix returns `false` while stop active (owner-agnostic, mirrors the
+  MoveTransform freeze). Resume correctness: the transform never moves while
+  frozen, so `lastPos == position` holds and the first resumed vanilla update
+  sweeps the FULL frozen flight distance — vanilla hit resolution, no tunneling.
+- **The falling-out edge system is OutOfBoundsHandler.LateUpdate** — keep the
+  AGENT bound by it while stopped (playtest-fixed: the caster fell through the
+  bottom edge forever). Bounds x∈[−35.56, 35.56], y∈[−20, 20]; punish branch
+  (bounce force / fall-out 51-damage launch) requires `counter > 0.1f` where
+  `counter += TimeHandler.deltaTime` — frozen by the pin, so the crossing agent
+  got nothing. Hijack: agent-only stash-restore of `TimeHandler.deltaTime` around
+  `LateUpdate` (IsAgent && view.IsMine); statues/remote keep the frozen body.
+  GOTCHA: `OutOfBoundsHandler.Start()` does `SetParent(null)` — the handler is NOT
+  a child of the player afterwards, so `GetComponent<CharacterData>()` in a prefix
+  CANNOT work; inject the private `data` field instead. HarmonyX SPELLING CRITICAL:
+  parameter must be named with THREE underscores — `CharacterData ___data` — bare
+  `data` compiles fine but makes HarmonyX fail the patch at runtime with
+  `Parameter "data" not found in method` and, via `PatchAll`, the exception blew up
+  `Awake` and removed EVERY mod card from the pool (2026-09-28 incident). Bite radius
+  is now contained: each card `Init()` is boxed by `DeerootCards.RunInit` try/catch,
+  so a broken patch class can never again swallow `CustomCard.BuildCard` calls — it
+  logs `[DEER] {name}.Init() FAILED` and the rest of the mod still builds.
+- **`PlayerAssigner.LateUpdate` NullReferenceException spam is PREEXISTING suite
+  noise, not the time stop** (verified: first occurrence at game start, hundreds
+  of casts before any Time Stop line in LogOutput.log; join-handler iterates
+  `players[i].playerActions` with one player missing its InControl actions — RWF
+  family quirk). Handle in its own task if ever annoying; don't chase it here.
 - **Bullets: EVERY bullet hangs, no matter whose it is** (playtest-fixed — the old
   agent-owner exemption let the caster's shots fly, which the user rejected as too
   strong): the `MoveTransform.Update` prefix just returns `!TimeStopState.IsActive`

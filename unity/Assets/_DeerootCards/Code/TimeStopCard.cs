@@ -983,5 +983,73 @@ namespace DeerootCards.Cards
             }
             return TimeStopState.IsAgent(data.player.playerID); // frozen = block
         }
+
+        // --- 9. Parked bullets are HARMLESS: nothing can be hit while the
+        //        stop runs. RayCastTrail.Update is the ONLY projectile impact
+        //        path (it owns every rayHit.Hit call — walls and players
+        //        alike). With a bullet parked, its cast segment has zero
+        //        length, but a zero-length CircleCastAll STILL returns
+        //        anything overlapping the bullet's circle — so the parked
+        //        muzzle bullet hits whoever it sits on (the root-skip guard
+        //        only skips the projectile's own child colliders, never the
+        //        shooter). Skip the whole update while frozen; since the
+        //        transform never moves, lastPos == position still holds and
+        //        the first vanilla update after resume sweeps the full frozen
+        //        flight segment normally — vanilla hits, zero tunneling, no
+        //        park-time damage.
+        [HarmonyPatch(typeof(RayCastTrail), "Update")]
+        [HarmonyPrefix]
+        private static bool RayCastTrailUpdateGate(RayCastTrail __instance)
+        {
+            // Owner-agnostic: a parked bullet can damage NO ONE — not its
+            // shooter, not a statue, not a wall — until time resumes.
+            return !TimeStopState.IsActive;
+        }
+
+        // --- 10. The MOVING agent obeys vanilla out-of-bounds while stopped:
+        //         fall off the map edge / bounce / die just like vanilla
+        //         (playtest bug: the caster fell through the bottom forever).
+        //         OutOfBoundsHandler.LateUpdate drives the whole edge system
+        //         (bounce force, shield wall, the fall-out 51-damage launch)
+        //         and its punish accumulator (`counter += TimeHandler.
+        //         deltaTime`) is frozen by the pin, so the agent crossing the
+        //         boundary never got punished and fell through. Hijack ONLY
+        //         the local agent's instance: tick it in real time. Statues
+        //         and remote copies keep the frozen vanilla body (their
+        //         counter stays 0 — a statue at the edge just hovers).
+        //         NOTE: OutOfBoundsHandler.Start does SetParent(null), so it
+        //         is NOT a child of the player — GetComponent<CharacterData>
+        //         would fail; instead Harmony injects the private `data`
+        //         field via the matching parameter name.
+        [HarmonyPatch(typeof(OutOfBoundsHandler), "LateUpdate")]
+        [HarmonyPrefix]
+        private static bool OutOfBoundsLateUpdate(OutOfBoundsHandler __instance, CharacterData ___data)
+        {
+            if (!TimeStopState.IsActive)
+            {
+                return true;
+            }
+            var player = ___data != null ? ___data.player : null;
+            if (player == null || !TimeStopState.IsAgent(player.playerID) || !___data.view.IsMine)
+            {
+                return true;
+            }
+            oobSavedDt = TimeHandler.deltaTime;
+            TimeHandler.deltaTime = Time.deltaTime; // punish accumulator ticks in real time
+            return true;
+        }
+
+        private static float oobSavedDt = float.NaN;
+
+        [HarmonyPatch(typeof(OutOfBoundsHandler), "LateUpdate")]
+        [HarmonyPostfix]
+        private static void OutOfBoundsLateUpdatePostfix(OutOfBoundsHandler __instance)
+        {
+            if (!float.IsNaN(oobSavedDt))
+            {
+                TimeHandler.deltaTime = oobSavedDt;
+                oobSavedDt = float.NaN;
+            }
+        }
     }
 }
