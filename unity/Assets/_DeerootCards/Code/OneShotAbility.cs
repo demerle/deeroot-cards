@@ -16,11 +16,13 @@ namespace DeerootCards.Cards
         private static readonly System.Collections.Generic.HashSet<string> oneShotCardNames =
             new System.Collections.Generic.HashSet<string>
             {
-                MeteorCardName
+                MeteorCardName,
+                TimeStopCardName
             };
 
-        /// <summary>Exact registered cardName of the one-shot cards ("Meteor" currently).</summary>
+        /// <summary>Exact registered cardName of the one-shot cards ("Meteor", "Time Stop").</summary>
         public const string MeteorCardName = MeteorCard.CardName;
+        public const string TimeStopCardName = TimeStopCard.CardName;
 
         internal static bool IsOneShot(string cardName)
         {

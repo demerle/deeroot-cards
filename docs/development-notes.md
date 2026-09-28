@@ -140,6 +140,131 @@ The game code is already decompiled on the linux drive:
 - Caveats (verify in playtest): extraction failure (CardChoice missing / no SpawnObjects on the vanilla card) logs loudly and results in a no-op block — check `[DEER] DynamicField:` logs first; vanilla stack semantics = multiple independent follow-fields, untested; RWF damage attribution inherits whatever vanilla TeamColor/SpawnedAttack wiring does (TDM watch-item).
 - `[DEER]` logs present: strip together with the Sovereign/BouncyBall/AbilityHud/Dive batch after playtest.
 
+## Time Stop card (TimeStopCard.cs; compiled clean, runtime playtest pending)
+
+- **The game's own time machine is `TimeHandler`**: `TimeHandler.Update` recomputes the
+  *static* `timeScale`/`deltaTime`/`fixedDeltaTime` every frame (from `baseTimeScale ×
+  gameOverTime × gameStartTime × timeStop`) and force-writes Unity's `Time.timeScale = 1`.
+  Everything sim-side scales off those three statics — so a full world-freeze is one
+  Harmony **prefix returning false** on `TimeHandler.Update` that writes all three statics
+  to 0 while active. Vanilla is self-healing: stop the suppression and the next real
+  Update recomputes everything. `TimeHandler.timeStop` (vanilla hit-stop field) is a
+  sub-factor we deliberately don't touch. Note: `Rigidbody2D`/`Physics2D` keeps running
+  at real time (Unity timeScale stays 1) — players aren't driven by a rigidbody
+  (walking = `PlayerMovement.Move` → `PlayerVelocity.AddForce` → internal `velocity`
+  integrated scaled in `PlayerVelocity.FixedUpdate`), so statues don't drift.
+- **Per-agent "acting inside stopped time" = stash-restore hijack idiom**: for each
+  personal ticking method, prefix stashes the pinned static to restore and writes the
+  wanted value, the ORIGINAL vanilla body runs unmodified, postfix restores. Applied
+  to `PlayerVelocity.FixedUpdate`, `PlayerMovement.FixedUpdate`, `Gravity.FixedUpdate`
+  (all timeScale-scaled), `CharacterData.Update`/`.FixedUpdate` (sinceJump/sinceWallGrab/
+  sinceGrounded tick via `TimeHandler.deltaTime`/`fixedDeltaTime` statics), `PlayerJump.Update`
+  (hold-jump feather), `Gun.Update` (sinceAttack + attackSpeedMultiplier), `GunAmmo.Update`
+  (reloadCounter/reload ring) — all gated to `data.view.IsMine` because each client is
+  sim-authoritative for its own players only (Sovereign model). One shared stash slot per
+  patch pair; targets never nest (all top-level Update/FixedUpdate).
+- **Frozen statue recipe**: `data.input.stunnedInput = true` gates ALL human inputs
+  at the source (GeneralInput.cs:98 — walk/jump/shoot/block/aim) + skip the sim
+  integration (PlayerVelocity prefix) so nothing moves. **Forces QUEUE instead of
+  being zeroed** (playtest-fixed): don't touch the internal `PlayerVelocity.velocity`
+  in the statue branch — shocks/knockback landing on a frozen statue pile up in it
+  (nothing integrates, nothing decays: all decay paths scale by the pinned
+  timeScale), and the vanilla body integrates the whole queue on resume = the
+  statue launches like causality catching up (Shockwave then fires properly).
+  Zero only `rig.velocity` (Physics2D keeps running in real time since Unity's own
+  timeScale is untouched — park that channel per tick). Vanilla `StunHandler` is the
+  reference freeze; restore at stop end must skip `data.isStunned` players so
+  vanilla's own stun lifecycle isn't broken.
+- **Hard gates are REQUIRED on the trigger methods, not just inputs**: `Gun.Attack`
+  and `Block.RPCA_DoBlock` get Harmony prefixes that return false for frozen
+  (non-agent) players — vanilla `PlayerAI` and our own bot brains write
+  `data.input.shootIsPressed`/`shieldWasPressed` DIRECTLY, bypassing
+  `GeneralInput`'s stunnedInput gate entirely (they'd burn ammo, play shot sounds
+  and raise shields while frozen). `TryBlock()` funnels into `RPCA_DoBlock`, so one
+  block chokepoint covers human, bot and block-on-hit paths. Our other ability
+  cards needed NO edits — every one (Meteor/Shambles/Invisibility/AmpWall/Portal/
+  Heart) already guards its key poll with `TimeHandler.timeScale > 0f`, so the pin
+  freezes their triggers emergently.
+- **Frozen cooldowns need zero work**: `Block.Update` ticks `sinceBlock`/`counter`
+  via `TimeHandler.deltaTime` (frozen), reload + free-reload + `RemoveAfterSeconds`
+  lifetimes likewise — everything recharges from its frozen value on resume.
+- **Bullets: EVERY bullet hangs, no matter whose it is** (playtest-fixed — the old
+  agent-owner exemption let the caster's shots fly, which the user rejected as too
+  strong): the `MoveTransform.Update` prefix just returns `!TimeStopState.IsActive`
+  — all projectiles sit exactly where they are, shots fired during the stop spawn
+  at the muzzle and hang there, and the caught volley all launches on resume via
+  normal integration (owner check deleted — cheaper and exactly the spec). Bullet
+  ownership is per-ProjectileHit (`ProjectileHit.ownPlayer` is public still used
+  elsewhere, e.g. Sovereign FF gates). Parked bullets expire-checked via
+  `RemoveAfterSeconds` — verified it ticks `TimeHandler.deltaTime` ⇒ frozen too,
+  no despawn mid-stop. Parked bullets still raycast-collide (walking INTO a parked
+  bullet hits you — accepted; zero-length casts fire once, then the bullet dies).
+- **The invert pass is LUMINANCE-GATED, not full-screen** (playtest-fixed: the flat
+  `1 − gray` version inverted the dark backdrop to near-white and blinded the
+  screen): the shader keeps pixels at luminance `_GateLo` (0.24) or below at their
+  original color and fully negates only pixels at or above `_GateHi` (0.45),
+  smoothstep ramp between. Lawful because the game itself paints ALL map scenery a
+  constant near-black — decompiled `Map.Start` recolors every map sprite with
+  alpha ≥ 0.5 to `new Color(11f/51f, …)` ≈ 0.216 gray — so the luminance gate is
+  the game's own scenery/gameplay divide. Both tunables are declared in the shader
+  `Properties` block (defaults apply via `new Material(shader)`, zero C# wiring);
+  re-tune = edit shader → rebuild bundle → rebuild DLL (two-pass flow below).
+  Known paint-off: inverted BRIGHT gameplay becomes DARK — a parked white bullet
+  reads as a dark dot on the dark backdrop; if unreadable in playtest the next
+  step is per-renderer material swaps (classification work) or bilateral contrast.
+- **Shipping the shader = bundled OnRenderImage pass, NOT a LUT swap** (LUT
+  experiment removed after playtest: the game camera carries no live
+  AmplifyColorEffect, so nothing changed on screen): a tiny image-effect shader
+  (`Hidden/Deeroot/TimeStopInvertMono`, grayscale + invert) ships INSIDE the mod DLL as
+  raw AssetBundle bytes. Pipeline: `TimeStopBundleBuilder.BuildBundleAndEmitSource`
+  (editor menu Assets/Build AssetBundles (Time Stop emit), or `-executeMethod` in
+  batch mode) marks the shader into a `deerootcards` bundle, builds into
+  `Assets/AssetBundles/`, then EMITS the bundle's base64 as
+  `Code/GeneratedTimeStopAssets.cs` (inside the asmdef ⇒ plain Unity batch compile
+  embeds it). The CsprojPostprocessor/EmbeddedResource template route only works for
+  msbuild builds — dead here; never wire it. Runtime:
+  `AssetBundle.LoadFromMemory(GeneratedTimeStopAssets.BundleBytes)` → `LoadAllAssets<Shader>()`
+  → `new Material(shader)`; Apply/Editor-appends attach a `TimeStopCameraFX` (OnRenderImage
+  → one Graphics.Blit) to EVERY active camera and Restore destroys them. Loud
+  `[DEER] TimeStop visual:` logs report cameras attached / material-missing so a
+  silent no-effect is impossible. Screen-space-overlay UI can NOT be inverted by a
+  camera post pass (drawn after post) — verify what stays colored in playtest.
+- **Linux-editor gotcha (cost ~30 min): `BuildTarget.StandaloneWindows` bundle builds
+  need the Windows player module** — a Linux 2018.4 editor install lacks it and
+  `BuildAssetBundles` refuses ("required module is not installed"). Fix without Unity
+  Hub: install the Windows Build Support (Mono) module by hand — the module archive for
+  a Linux editor is only shipped in the MAC component list
+  (`MacEditorTargetInstaller/UnitySetup-Windows-Mono-Support-for-Editor-<ver>.pkg` on
+  download.unity3d.com, ~105 MB); `7z x` the .pkg → `TargetSupport.pkg.tmp/Payload`
+  (gzip) → inner `Payload~` (cpio) and copy the extracted tree over
+  `Editor/Data/PlaybackEngines/windowsstandalonesupport/`. Build then succeeds.
+- **State model**: broadcast-only RPCs (`RPCA_TimeStopStart(casterID, duration)`,
+  `RPCA_TimeStopToggleAgent(playerID, join)` — idempotent agent set), each client
+  self-expires on `Time.unscaledTime` (the game clock is pinned), offline ESC-menu
+  pauses the countdown, `GameModeHooks` HookPointEnd/HookRoundEnd/HookGameStart clear
+  state. Trigger/enter/fall-out are polled by ONE global DontDestroyOnLoad driver
+  (single keypress resolver — prevents Meteor(C)+TimeStop same-key double-fires):
+  key U (split-screen local idx1: I), first press outside a stop = cast (consume via
+  OneShotAbility), press during a stop = toggling membership (enter if frozen +
+  holding a Deeroot ability card, fall out if inside; re-entering allowed).
+- Caster death mid-stop does NOT end the stop (it outlives its caster per design);
+  DoT/regen freeze for everyone including agents (acceptable: regen paused 4s);
+  block cooldowns freeze for statues (one free block per stop) — accepted tuning.
+- Playtest checklist: cast key U while a bullet is airborne → everything snaps
+  frozen + the screen inverts (negative monochrome — verify HUD stays colored or
+  not, screenshot it); caster walks/jumps/aims and can shoot, but ALL bullets
+  (theirs included) hang at the muzzle / mid-air and the volley launches on resume;
+  slowed-shockwave (or any knockback) on a frozen opponent → launches on resume;
+  frozen bot/human cannot fire (no muzzle sounds), block or use ability keys, and
+  their block/reload cooldown rings are standing still; second player WITHOUT an
+  ability card stays frozen; WITH an ability card they can enter/fall out; round
+  end/pick phase restores colors and timeScale (then strip the `[DEER]` logs);
+  Sweet spot tuning: `TimeStopCard.StopDuration`.
+- Bundle shader rebuild flow (when the shader changes): run
+  `-executeMethod TimeStopBundleBuilder.BuildBundleAndEmitSource`, then a plain
+  batch compile (two Unity runs total — the emitted source must be imported once
+  before it can be embedded in the DLL).
+
 ## Amp Wall card (AmpWallCard.cs, compiled clean, runtime playtest pending)
 
 - **Bullet-ownership gate without SpawnedAttack: `ProjectileHit.ownPlayer` is a PUBLIC field set by `Gun.ApplyPlayerStuff` (Gun.cs:584) on EVERY client** — compare `ownPlayer.playerID` to gate per-owner bullet effects (used by Amp Wall: only the caster's bullets get amplified). No RPC needed for the gate itself.

@@ -26,6 +26,7 @@ namespace DeerootCards
             Cards.DynamicFieldCard.Init(); // no patches — vanilla block event drives the field
             Cards.FullCounterCard.Init(); // doubles damage inside Block.blocked, including own bullets
             Cards.AmpWallCard.Init(); // applies the amp-wall MoveTransform bullet patch
+            Cards.TimeStopCard.Init(); // pins TimeHandler statics to 0 + agent-hijack patches while a stop runs
             CustomCard.BuildCard<OverdriveCard>();
             CustomCard.BuildCard<BlinkCard>();
             CustomCard.BuildCard<DiveCard>();
@@ -45,6 +46,7 @@ namespace DeerootCards
             CustomCard.BuildCard<PowerUpCard>();
             CustomCard.BuildCard<SlowAndSteadyCard>();
             CustomCard.BuildCard<MeteorCard>();
+            CustomCard.BuildCard<TimeStopCard>();
         }
 
         void Start()
