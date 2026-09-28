@@ -173,6 +173,18 @@ namespace DeerootCards.Cards
                 return; // never during pick phase / game over
             }
 
+            if (TimeStopState.IsActive)
+            {
+                // No field mid-stop: the vanilla field prefab's damage/slow
+                // pulses run on DelayEvent coroutines (UNITY clock — the pin
+                // does not freeze those), so a field spawned now would keep
+                // dealing damage through the whole stop. Queue the spawn; on
+                // resume it places itself at the caster and runs vanilla.
+                TimeStopState.QueueOnResume("dynamic field spawn", player, () => SpawnField(player));
+                UnityEngine.Debug.Log("[DEER] DynamicField: block during time stop — spawn queued for resume");
+                return;
+            }
+
             SpawnField(player);
         }
 

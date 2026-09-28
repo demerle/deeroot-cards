@@ -224,6 +224,67 @@ namespace DeerootCards.Cards
                 }
             }
             UnityEngine.Debug.Log("[DEER] TimeStop END — time resumes");
+            DrainResumeQueue();
+        }
+
+        // -----------------------------------------------------------
+        // Resume queue — effects whose whole machinery would run in
+        // real-time Unity clock (coroutines/FixedUpdate are NOT frozen by
+        // the pin) register here instead of firing mid-stop. Drained by
+        // End() once time has resumed: `active` is already false, so every
+        // gate reads IsActive = false and lets the vanilla bodies run.
+        // -----------------------------------------------------------
+        internal static void QueueOnResume(string tag, UnityEngine.Object owner, System.Action run)
+        {
+            if (run != null)
+            {
+                resumeQueue.Add(new QueuedEffect { tag = tag, owner = owner, run = run });
+            }
+        }
+
+        private sealed class QueuedEffect
+        {
+            internal string tag;
+            internal UnityEngine.Object owner; // gone subjects are skipped (Unity fake-null)
+            internal System.Action run;
+        }
+
+        private static readonly List<QueuedEffect> resumeQueue = new List<QueuedEffect>();
+
+        private static void DrainResumeQueue()
+        {
+            if (resumeQueue.Count == 0)
+            {
+                return;
+            }
+            if (GameManager.instance == null || !GameManager.instance.battleOngoing)
+            {
+                UnityEngine.Debug.Log($"[DEER] TimeStop: discarding {resumeQueue.Count} queued effect(s), round over: [{string.Join(", ", resumeQueue.Select(q => q.tag).ToArray())}]");
+                resumeQueue.Clear();
+                return;
+            }
+            UnityEngine.Debug.Log($"[DEER] TimeStop: releasing deferred effect(s) on resume: [{string.Join(", ", resumeQueue.Select(q => q.tag).ToArray())}]");
+            for (int i = 0; i < resumeQueue.Count; i++)
+            {
+                var queued = resumeQueue[i];
+                if (queued.owner != null)
+                {
+                    try
+                    {
+                        queued.run();
+                    }
+                    catch (System.Exception ex)
+                    {
+                        // one bad entry must never eat the rest (RunInit doctrine)
+                        UnityEngine.Debug.LogError($"[DEER] TimeStop: queued '{queued.tag}' FAILED — {ex}");
+                    }
+                }
+                else
+                {
+                    UnityEngine.Debug.Log($"[DEER] TimeStop: queued '{queued.tag}' skipped, its object is gone");
+                }
+            }
+            resumeQueue.Clear();
         }
 
         internal static void ToggleAgent(int playerID, bool join)
@@ -1050,6 +1111,156 @@ namespace DeerootCards.Cards
                 TimeHandler.deltaTime = oobSavedDt;
                 oobSavedDt = float.NaN;
             }
+        }
+
+        // --- 11. Block-spawned effect objects hold until time resumes.
+        //        Vanilla recipe: the card injects an A_* carrier as a CHILD of
+        //        the player (CharacterStatModifiers.AddObjectToPlayer); on
+        //        block its SpawnObjects.Spawn() instantiates the E_* effect
+        //        object at the carrier position. WITHOUT this gate the effect
+        //        objects spawned mid-stop run their machinery immediately,
+        //        because their drivers (DelayEvent = WaitForSeconds
+        //        coroutines, FixedUpdate) run on the UNITY clock, which our
+        //        TimeHandler pin does NOT freeze (TimeHandler.Update normally
+        //        re-writes Unity Time.timeScale = 1 every frame) — Static
+        //        Field pulsed and dealt damage through the whole stop and
+        //        Supernova's stage chain fired mid-stop (playtest bugs).
+        //        Policy: default-DEFER every carrier spawn until resume (the
+        //        effect then plays out in one vanilla pass), EXCEPT the
+        //        implode ball — the ball IS the epicenter the pull targets
+        //        (spec: "player position at the time of blocking"), so it
+        //        must exist at the block spot, parked, until resume.
+        //        GOTCHA: the carrier is a child of the player and keeps
+        //        FOLLOWING them during the stop, so queueing the bare Spawn()
+        //        delegate materialized the field at the caster's RESUME
+        //        position (playtest bug: Static Field on the player). The
+        //        gate therefore captures the carrier's position/rotation at
+        //        block time — that IS "where I blocked" — and releases via
+        //        SpawnDeferredAt below, a faithful mirror of vanilla
+        //        Spawn()/ConfigureObject().
+        [HarmonyPatch(typeof(SpawnObjects), nameof(SpawnObjects.Spawn))]
+        [HarmonyPrefix]
+        private static bool SpawnObjectsSpawnGate(SpawnObjects __instance)
+        {
+            if (!TimeStopState.IsActive)
+            {
+                return true;
+            }
+            var objects = __instance.objectToSpawn;
+            string prefabName = objects != null && objects.Length > 0 && objects[0] != null ? objects[0].name : null;
+            if (prefabName != null && prefabName.StartsWith("E_Implode", System.StringComparison.OrdinalIgnoreCase))
+            {
+                // Parked visuals at the block-time epicenter; its detonation
+                // is gated separately in section 12.
+                return true;
+            }
+            Vector3 blockedPos = __instance.transform.position;
+            Quaternion blockedRot = __instance.spawnRot == SpawnObjects.SpawnRot.TransformRotation
+                ? __instance.transform.rotation
+                : Quaternion.identity;
+            TimeStopState.QueueOnResume(
+                "spawn " + (prefabName ?? __instance.name) + " at blocked spot",
+                __instance,
+                () => SpawnDeferredAt(__instance, blockedPos, blockedRot));
+            UnityEngine.Debug.Log($"[DEER] TimeStop: deferred block-spawn '{prefabName ?? __instance.name}' until time resumes (anchored at blocked spot {blockedPos})");
+            return false;
+        }
+
+        // Mirror of vanilla SpawnObjects.Spawn() + ConfigureObject(), pinned
+        // to the block-time position instead of the carrier's live transform.
+        // State read at drain time is deliberately limited to what cannot
+        // change during a stop (root player, AttackLevel, scales, flags) —
+        // only the carrier's transform moves while deferred.
+        private static void SpawnDeferredAt(SpawnObjects carrier, Vector3 blockedPos, Quaternion blockedRot)
+        {
+            var objects = carrier.objectToSpawn;
+            if (objects != null)
+            {
+                for (int i = 0; i < objects.Length; i++)
+                {
+                    if (objects[i] == null)
+                    {
+                        continue;
+                    }
+                    GameObject go = Object.Instantiate(objects[i], blockedPos, blockedRot);
+                    ConfigureDeferredObject(carrier, go);
+                    carrier.mostRecentlySpawnedObject = go;
+                }
+            }
+            if (carrier.destroyObject)
+            {
+                Object.Destroy(carrier.gameObject);
+            }
+            if (carrier.destroyRoot)
+            {
+                Object.Destroy(carrier.transform.root.gameObject);
+            }
+        }
+
+        private static void ConfigureDeferredObject(SpawnObjects carrier, GameObject go)
+        {
+            var spawned = go.GetComponent<SpawnedAttack>();
+            if (spawned == null)
+            {
+                spawned = go.AddComponent<SpawnedAttack>();
+            }
+            spawned.spawner = carrier.transform.root.GetComponent<Player>();
+            if (spawned.spawner == null)
+            {
+                var parentSpawned = carrier.GetComponentInParent<SpawnedAttack>();
+                if (parentSpawned != null)
+                {
+                    parentSpawned.CopySpawnedAttackTo(go);
+                }
+            }
+            var level = carrier.GetComponentInParent<AttackLevel>();
+            if (level != null)
+            {
+                spawned.attackLevel = level.attackLevel;
+            }
+            if (carrier.inheritScale)
+            {
+                go.transform.localScale *= carrier.transform.localScale.x;
+            }
+            // SpawnedAction subscribers (e.g. SetSpawnedParticleColor) provide
+            // the skin tinting — skipping this would silently lose team colors.
+            if (carrier.SpawnedAction != null)
+            {
+                carrier.SpawnedAction(go);
+            }
+        }
+
+        // --- 12. The implode ball's DETONATION holds until resume. Its 0.1s
+        //        DelayEvent fires mid-stop (Unity clock!), and vanilla would
+        //        then hammer HealthHandler.TakeForce → PlayerVelocity.AddForce
+        //        onto FROZEN players every physics frame: their FixedUpdate
+        //        is skipped, so PlayerVelocity.velocity accumulates without
+        //        limit, AND the sustained pull's loop (`for i < time; i +=
+        //        TimeHandler.fixedDeltaTime`) never advances against the
+        //        pinned 0 fixed step — at resume the first integration step
+        //        launched victims toward/past the epicenter, the longer the
+        //        stop the farther (the "sends opponents REALLY far" bug).
+        //        With the detonation deferred, NO force exists during the
+        //        stop; on release the queued Explode() runs vanilla in real
+        //        time (impulse + drag-braked pull) and lands victims AT the
+        //        parked ball. Scope: instances carrying Implosion — the
+        //        implode family only; every other Explosion object is
+        //        simply absent mid-stop now thanks to section 11.
+        [HarmonyPatch(typeof(Explosion), nameof(Explosion.Explode))]
+        [HarmonyPrefix]
+        private static bool ExplosionExplodeGate(Explosion __instance)
+        {
+            if (!TimeStopState.IsActive)
+            {
+                return true;
+            }
+            if (__instance.GetComponent<Implosion>() == null)
+            {
+                return true;
+            }
+            TimeStopState.QueueOnResume("implode detonation", __instance, __instance.Explode);
+            UnityEngine.Debug.Log("[DEER] TimeStop: implode ball parked — detonation deferred to resume");
+            return false;
         }
     }
 }

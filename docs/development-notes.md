@@ -220,6 +220,59 @@ The game code is already decompiled on the linux drive:
   of casts before any Time Stop line in LogOutput.log; join-handler iterates
   `players[i].playerActions` with one player missing its InControl actions — RWF
   family quirk). Handle in its own task if ever annoying; don't chase it here.
+- **THE UNITY CLOCK HOLE — coroutines and FixedUpdate are NOT frozen by the pin**.
+  The pin freezes the game's own statics, but `TimeHandler.Update`'s vanilla body
+  re-writes Unity's `Time.timeScale = 1f` EVERY frame, and our excluded prefix
+  never touches Unity's clock — so during the stop, Unity coroutines
+  (`WaitForSeconds`), every `FixedUpdate`, and raw `Time.deltaTime` consumers run
+  at full speed. Vanilla effect objects (black holes, fields, bombs) drive their
+  whole machinery on `DelayEvent` (= `WaitForSeconds`, re-invoking e.g.
+  `Explosion.Explode` on delay/repeat) — mid-stop these detonate for real. Rule
+  for gate design: anything ticked by TimeHandler statics is already frozen;
+  anything ticked by the Unity clock (DelayEvent, FixedUpdate, Physics2D) needs
+  an explicit gate or deferral.
+- **Block-spawned effect objects (A_*/E_*) hold until resume** (section 11 gate
+  on `SpawnObjects.Spawn`): vanilla recipe is card → `CharacterStatModifiers.
+  AddObjectToPlayer` = an `A_*` carrier (BlockTrigger + SpawnObjects) injected
+  as a child of the player; on block it instantiates the `E_*` effect object at
+  the carrier's position. Gate policy is default-DEFER with ONE carve-out: the
+  implode ball `E_Implode` still spawns at block, because the ball IS the
+  epicenter its pull targets (user spec: "player position at the time of
+  blocking") — parked visuals while frozen. GOTCHA (playtest-fixed): the
+  carrier is a child of the player and keeps FOLLOWING them during the stop, so
+  queueing the bare `Spawn()` delegate materialized Static Field at the
+  caster's RESUME position, not the blocked spot. The gate now captures the
+  carrier's position/rotation AT BLOCK TIME and releases
+  `TimeStopPatches.SpawnDeferredAt(carrier, pos, rot)` — a faithful mirror of
+  vanilla `Spawn()` + `ConfigureObject()`: whole `objectToSpawn` array,
+  SpawnedAttack add/reuse + `spawner` + `CopySpawnedAttackTo` fallback,
+  `AttackLevel`, `inheritScale`, `SpawnedAction` (MUST be invoked or
+  `SetSpawnedParticleColor` skin tinting silently drops), `destroyObject`/
+  `destroyRoot`, and `mostRecentlySpawnedObject` set — which also retires the
+  old `EmpowerStopBlockObjectFollow` null-read caveat. Only root/AttackLevel/
+  scale/flag state is read at drain time: it cannot change during a stop (only
+  the carrier's transform moves). Supernova needs no special case — its
+  `FollowPlayer` snaps stage 1 onto the caster the frame it spawns anyway.
+- **The implode ball's detonation is deferred separately** (section 12 gate on
+  `Explosion.Explode`, scoped to instances carrying `Implosion`): its 0.1s
+  DelayEvent fires mid-stop (Unity clock) and vanilla then hammers
+  `HealthHandler.TakeForce → PlayerVelocity.AddForce → PlayerVelocity.velocity
+  += force/mass` onto frozen players every physics frame — their FixedUpdate is
+  skipped, so the velocity field accumulates UNBOUNDED, and the sustained pull's
+  loop (`for i < time; i += TimeHandler.fixedDeltaTime`) never advances against
+  the pinned 0 — at resume victims were launched toward/past the epicenter, the
+  longer the stop the farther. Deferred detonation = zero forces mid-stop; on
+  release the queued `Explode()` runs vanilla in real time and lands victims AT
+  the parked ball. IMPORTANT DISTINCTION: the statue "forces queue and launch
+  at resume" behavior stays DELIBERATE for outside impacts (shockwaves etc.);
+  only a deferred detonator stops manufacturing its own forces mid-stop.
+- **`TimeStopState.QueueOnResume(tag, owner, action)` is the resume-queue** —
+  drains at the very end of `End()` (after `active` is false, so every gate
+  reads inactive and lets vanilla run), ordered, per-entry try/catch (RunInit
+  doctrine), owner fake-null skip, and discards the queue entirely when the
+  stop ends with `!GameManager.instance.battleOngoing` (round over — never fire
+  queued effects into the pick phase). Gates only call it while active, so no
+  lingering entries between stops.
 - **Bullets: EVERY bullet hangs, no matter whose it is** (playtest-fixed — the old
   agent-owner exemption let the caster's shots fly, which the user rejected as too
   strong): the `MoveTransform.Update` prefix just returns `!TimeStopState.IsActive`
