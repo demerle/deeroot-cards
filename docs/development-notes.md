@@ -393,6 +393,29 @@ The game code is already decompiled on the linux drive:
 
 - **Duplicating a self-contained card ("Simulacrum" = full copy of Sovereign, SimulacrumCard.cs, compiled clean)**: a card file that owns ALL its classes (card + effect + bot factory + brain + runner + Harmony patch) duplicates with a simple sed rename `Sovereign→Simulacrum`. Key: use a DIFFERENT Harmony instance ID (`com.deeroot.cards.simulacrum`) per copy; the duplicate `RPCA_DoHit` prefix and duplicate `GameModeManager.AddHook` round-reset hooks are harmless/redundant — each registry (SovereignBot vs SimulacrumBot.bots) is distinct and both patches' `IsBot` checks gate on their own bots only. Register in `DeerootCards.cs` with its own `Init()` + `CustomCard.BuildCard`.
 
+## Sound assets (Time Stop stings; compiled clean, runtime playtest pending)
+
+- **Pipeline for shipping audio/Shaders inside DeerootCards.dll** (established):
+  `TimeStopBundleBuilder.cs` (Assets/Editor) tags assets into the `deerootcards`
+  bundle, `BuildPipeline.BuildAssetBundles` → emits the raw bytes base64 into
+  `GeneratedTimeStopAssets.cs` → the plain Unity batch compile bakes them into
+  the DLL. Runtime: `TimeStopAssets.GetBundle()` loads the bundle ONCE (shared
+  by `TimeStopVisual` + `TimeStopSounds`; loading the same byte[] twice would
+  waste a second copy of the bytes).
+- **GOTCHA: mp3 import is unreliable on the LINUX Unity editor** — transcode
+  game audio to **OGG** before putting it in `unity/Assets/_DeerootCards/Sounds/`
+  (originals kept in `sound-files/`). The builder sanity-checks that exactly 4
+  OGG stings exist.
+- **Deterministic random across clients**: a per-client `Random.Range` diverges
+  — the CASTING client picks (e.g. Time Stop sting index 0–2) and passes it
+  through the RPC so every client hears the same one.
+- **Audio + timeScale**: Unity audio does NOT pitch/silence with
+  `TimeHandler.timeScale` — a plain 2D AudioSource (`spatialBlend=0`, pitch 1)
+  plays normally over a frozen world. `DontDestroyOnLoad` the player GameObject
+  so scene loads don't kill a mid-play sting; self-destruct after
+  `clip.length + 0.1f`; remember the source so a resume/chain-recast can CUT
+  a still-playing sting.
+
 ## Tooling
 
 - Test logs readable directly at `~/.config/r2modmanPlus-local/ROUNDS/profiles/dev/BepInEx/LogOutput.log` (r2modman dev profile, no need for the user to paste).

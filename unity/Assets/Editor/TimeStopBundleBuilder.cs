@@ -24,6 +24,7 @@ public static class TimeStopBundleBuilder
     public const string BundleName = "deerootcards";
 
     private const string ShaderPath = "Assets/_DeerootCards/Shaders/TimeStopInvert.shader";
+    private const string SoundsDir = "Assets/_DeerootCards/Sounds";
     private const string OutDir = "Assets/AssetBundles";
     private const string GeneratedPath = "Assets/_DeerootCards/Code/GeneratedTimeStopAssets.cs";
 
@@ -38,6 +39,28 @@ public static class TimeStopBundleBuilder
         }
         importer.assetBundleName = BundleName;
         importer.SaveAndReimport();
+
+        // Stop/resume stings ride in the same bundle. OGG only — mp3 import is
+        // unreliable on the Linux Unity editor (see dev-notes).
+        int clipCount = 0;
+        foreach (var file in Directory.GetFiles(SoundsDir, "*.ogg"))
+        {
+            string assetPath = file.Replace('\\', '/');
+            var clipImporter = AssetImporter.GetAtPath(assetPath);
+            if (clipImporter == null)
+            {
+                Debug.LogError($"[DEER] TimeStop bundle: missing sound at {assetPath}");
+                return;
+            }
+            clipImporter.assetBundleName = BundleName;
+            clipImporter.SaveAndReimport();
+            clipCount++;
+        }
+        if (clipCount != 4)
+        {
+            Debug.LogError($"[DEER] TimeStop bundle: expected 4 OGG stings in {SoundsDir}, found {clipCount}");
+            return;
+        }
 
         if (Directory.Exists(OutDir))
         {

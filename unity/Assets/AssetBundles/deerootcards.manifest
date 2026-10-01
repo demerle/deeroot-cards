@@ -1,16 +1,22 @@
 ManifestFileVersion: 0
-CRC: 969334061
+CRC: 4258243524
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: 6060185badd5cd8b14c15e289cab42aa
+    Hash: 02c32815342d3ce1e92475fc0cefe2ce
   TypeTreeHash:
     serializedVersion: 2
-    Hash: 7e9ee104d6bb707fb2602b751e6f78b1
+    Hash: b49a78fc761535c84288e3fff2ae4cf9
 HashAppended: 0
 ClassTypes:
 - Class: 48
   Script: {instanceID: 0}
+- Class: 83
+  Script: {instanceID: 0}
 Assets:
+- Assets/_DeerootCards/Sounds/time_resume.ogg
+- Assets/_DeerootCards/Sounds/timestop1.ogg
+- Assets/_DeerootCards/Sounds/timestop2.ogg
 - Assets/_DeerootCards/Shaders/TimeStopInvert.shader
+- Assets/_DeerootCards/Sounds/timestop3.ogg
 Dependencies: []

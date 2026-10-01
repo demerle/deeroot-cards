@@ -213,13 +213,14 @@ namespace DeerootCards.Cards
             go.AddComponent<TimeStopDriver>();
         }
 
-        internal static void Begin(int casterPlayerID, float duration)
+        internal static void Begin(int casterPlayerID, float duration, int soundIndex = -1)
         {
             active = true;
             agents.Clear();
             agents.Add(casterPlayerID);
             EndTime = Time.unscaledTime + Mathf.Clamp(duration, 0.5f, TimeStopCard.MaxStopDuration);
             TimeStopVisual.Apply();
+            TimeStopSounds.PlayStop(soundIndex);
             UnityEngine.Debug.Log($"[DEER] TimeStop START caster {casterPlayerID} for {duration:F1}s ({agents.Count} inside)");
         }
 
@@ -242,6 +243,8 @@ namespace DeerootCards.Cards
                 }
             }
             UnityEngine.Debug.Log("[DEER] TimeStop END — time resumes");
+            // Cut the frozen-world sting — time restarting silences it.
+            TimeStopSounds.OnTimeResume();
             // Forces a frozen bot failed to shed (its statue branch parks the
             // Rigidbody2D channel, not PlayerVelocity.velocity) would otherwise
             // integrate as one lump on resume and punt the bot. Clear them.
@@ -335,7 +338,10 @@ namespace DeerootCards.Cards
         // -----------------------------------------------------------
         internal static void BroadcastStart(int casterPlayerID, float duration)
         {
-            NetworkingManager.RPC(typeof(TimeStopState), nameof(RPCA_TimeStopStart), casterPlayerID, duration);
+            // The CASTER picks the sting so every client hears the same one —
+            // each client's UnityEngine.Random would diverge.
+            int soundIndex = UnityEngine.Random.Range(0, TimeStopSounds.StopCount);
+            NetworkingManager.RPC(typeof(TimeStopState), nameof(RPCA_TimeStopStart), casterPlayerID, duration, soundIndex);
         }
 
         internal static void BroadcastToggle(int playerID, bool join)
@@ -344,9 +350,9 @@ namespace DeerootCards.Cards
         }
 
         [UnboundLib.Networking.UnboundRPC]
-        public static void RPCA_TimeStopStart(int casterPlayerID, float duration)
+        public static void RPCA_TimeStopStart(int casterPlayerID, float duration, int soundIndex)
         {
-            Begin(casterPlayerID, duration);
+            Begin(casterPlayerID, duration, soundIndex);
         }
 
         [UnboundLib.Networking.UnboundRPC]
@@ -395,6 +401,167 @@ namespace DeerootCards.Cards
     }
 
     // ---------------------------------------------------------------
+    // Embedded-asset access: the 'deerootcards' bundle (shader + the four
+    // stop/resume stings) ships base64 inside the DLL. One shared load —
+    // a bundle reconstructed twice would waste a second copy of the bytes.
+    // ---------------------------------------------------------------
+    internal static class TimeStopAssets
+    {
+        private static AssetBundle bundle;
+        private static bool failed;
+
+        internal static AssetBundle GetBundle()
+        {
+            if (bundle != null)
+            {
+                return bundle;
+            }
+            if (failed)
+            {
+                return null;
+            }
+            bundle = AssetBundle.LoadFromMemory(GeneratedTimeStopAssets.BundleBytes);
+            if (bundle == null)
+            {
+                failed = true;
+                UnityEngine.Debug.LogError("[DEER] TimeStop assets: asset bundle failed to load from embedded bytes");
+            }
+            return bundle;
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // Stop/resume stings (OGG clips inside the embedded bundle). Stop:
+    // caster picks one of three locally and ships the index through the
+    // start RPC so every client hears the SAME sting. Resume: End() runs
+    // on every client already — local playback, no extra RPC.
+    //
+    // Audio plays through a plain AudioSource at pitch 1 — Unity does NOT
+    // pitch/silence audio by timeScale, which is exactly what we want: the
+    // jingle rings normally over the frozen world. A still-playing stop
+    // sting is CUT when time resumes (End -> OnTimeResume) or when a new
+    // stop chains before the old one ends.
+    // ---------------------------------------------------------------
+    internal static class TimeStopSounds
+    {
+        internal const int StopCount = 3;
+
+        private static readonly AudioClip[] stopClips = new AudioClip[StopCount];
+        private static AudioClip resumeClip;
+        private static bool loaded;
+        private static AudioSource stopSource;
+        private static AudioSource resumeSource;
+
+        internal static void EnsureLoaded()
+        {
+            if (loaded)
+            {
+                return;
+            }
+            loaded = true;
+            var bundle = TimeStopAssets.GetBundle();
+            if (bundle == null)
+            {
+                return;
+            }
+            var clips = bundle.LoadAllAssets<AudioClip>();
+            foreach (var clip in clips)
+            {
+                switch (clip.name)
+                {
+                    case "timestop1":
+                        stopClips[0] = clip;
+                        break;
+                    case "timestop2":
+                        stopClips[1] = clip;
+                        break;
+                    case "timestop3":
+                        stopClips[2] = clip;
+                        break;
+                    case "time_resume":
+                        resumeClip = clip;
+                        break;
+                    default:
+                        UnityEngine.Debug.LogWarning($"[DEER] TimeStop sounds: unexpected clip '{clip.name}' in bundle");
+                        break;
+                }
+            }
+            for (int i = 0; i < StopCount; i++)
+            {
+                if (stopClips[i] == null)
+                {
+                    UnityEngine.Debug.LogWarning($"[DEER] TimeStop sounds: timestop{i + 1} missing from embedded bundle — casting will be silent");
+                }
+            }
+            if (resumeClip == null)
+            {
+                UnityEngine.Debug.LogWarning("[DEER] TimeStop sounds: time_resume missing from embedded bundle — resumes will be silent");
+            }
+            UnityEngine.Debug.Log($"[DEER] TimeStop sounds: loaded {clips.Length} clip(s) from embedded bundle");
+        }
+
+        /// <summary>2D one-shot: survives scene loads until the clip is done.</summary>
+        private static AudioSource Play2D(AudioClip clip)
+        {
+            var go = new GameObject("DeerootTimeStopSound");
+            Object.DontDestroyOnLoad(go);
+            var src = go.AddComponent<AudioSource>();
+            src.spatialBlend = 0f; // 2D, no listener-side falloff/pan
+            src.playOnAwake = false;
+            src.pitch = 1f; // Unity won't pitch audio by timeScale, but be explicit
+            src.clip = clip;
+            src.Play();
+            UnityEngine.Object.Destroy(go, clip.length + 0.1f);
+            return src;
+        }
+
+        internal static void PlayStop(int soundIndex)
+        {
+            EnsureLoaded();
+            if (stopClips == null)
+            {
+                return;
+            }
+            if (soundIndex < 0 || soundIndex >= StopCount || stopClips[soundIndex] == null)
+            {
+                UnityEngine.Debug.LogWarning($"[DEER] TimeStop sounds: bad/missing stop sting index {soundIndex} — silent cast");
+                return;
+            }
+            // Recast before the old sting finished: cut it so the new cast rings clean.
+            if (stopSource != null)
+            {
+                UnityEngine.Object.Destroy(stopSource.gameObject);
+                stopSource = null;
+            }
+            stopSource = Play2D(stopClips[soundIndex]);
+        }
+
+        /// <summary>End() hit: cut the frozen-world sting, ring the resume sting.</summary>
+        internal static void OnTimeResume()
+        {
+            if (stopSource != null)
+            {
+                UnityEngine.Object.Destroy(stopSource.gameObject);
+                stopSource = null;
+            }
+            EnsureLoaded();
+            if (resumeClip == null)
+            {
+                return;
+            }
+            // End() is idempotent-guarded upstream, but re-triggering from a
+            // rapid re-cast must still cut any lingering resume sting's source
+            // without overlapping: recreate fresh each time.
+            if (resumeSource != null)
+            {
+                UnityEngine.Object.Destroy(resumeSource.gameObject);
+                resumeSource = null;
+            }
+            resumeSource = Play2D(resumeClip);
+        }
+    }
+
+    // ---------------------------------------------------------------
     // Black-and-white inverted visual during the stop: a compiled
     // negative-monochrome image-effect shader ships inside the DLL as raw
     // bundle bytes (emitted by TimeStopBundleBuilder). Apply attaches a tiny
@@ -413,11 +580,10 @@ namespace DeerootCards.Cards
             {
                 return;
             }
-            var bundle = AssetBundle.LoadFromMemory(GeneratedTimeStopAssets.BundleBytes);
+            var bundle = TimeStopAssets.GetBundle();
             if (bundle == null)
             {
-                UnityEngine.Debug.LogError("[DEER] TimeStop visual: asset bundle failed to load from embedded bytes");
-                return;
+                return; // GetBundle already logged the failure
             }
             var shaders = bundle.LoadAllAssets<Shader>();
             if (shaders.Length == 0)
