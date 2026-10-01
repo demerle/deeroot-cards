@@ -63,13 +63,24 @@ namespace DeerootCards.Cards
 
         public override void OnRemoveCard(Player player, Gun gun, GunAmmo gunAmmo, CharacterData data, HealthHandler health, Gravity gravity, Block block, CharacterStatModifiers characterStats)
         {
-            var effect = player.GetComponent<SimulacrumEffect>();
-            if (effect != null)
-            {
-                Destroy(effect);
-            }
-            // A keeperless army has no reason to stand around.
-            SimulacrumBot.DespawnOwned(player.playerID);
+            // UnboundLib fires OnRemoveCard for EVERY held card on any deck
+            // rebuild (Player.FullReset postfix) — destroying the effect here
+            // would despawn a live bot army. CardRemovalGuard only tears down
+            // when the card is verifiably gone. (Sovereign recipe.)
+            CardRemovalGuard.Register(
+                player,
+                CardName,
+                () =>
+                {
+                    var effect = player.GetComponent<SimulacrumEffect>();
+                    if (effect != null)
+                    {
+                        Destroy(effect);
+                    }
+                    // A keeperless army has no reason to stand around.
+                    SimulacrumBot.DespawnOwned(player.playerID);
+                }
+            );
         }
 
         protected override string GetTitle()

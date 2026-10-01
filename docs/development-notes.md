@@ -56,6 +56,34 @@ The game code is already decompiled on the linux drive:
 - UnboundLib `Cards.instance.RemoveCardFromPlayer(player, idx, editCardBar)` rebuilds the **whole deck** from scratch: every remaining card's `OnAddCard` re-fires during the vanilla pick pipeline. DON'T assume removal is surgical.
 - **DO** open `RebuildGuard` (static 2s unscaled-time quiet window, `RebuildGuard.cs`) on any removal path and have our cards' `OnAddCard` bail while `IsQuiet` — kills re-fire cascades in both Delete and Double.
 
+## Card removal rebuild-echo guard (CardRemovalGuard; compiled clean, runtime playtest pending)
+
+- UnboundLib ALSO fires `OnRemoveCard` for **EVERY held card** inside its
+  `Player.FullReset` postfix (`Player_Patch_FullReset.Postfix`) whenever ANY
+  deck rebuild runs (one-shot consume, Delete, Double, any foreign mod) —
+  ModdingUtils' removal is literally full reset + re-add 0.1s later; vanilla
+  has no mid-game removal pipeline at all. That cascade destroyed Portal/Heart
+  effects (whose `OnDestroy` wipes the static portal/heart registries) and
+  despawned Sovereign/Simulacrum bots — the "meteor use wipes portals /
+  heart / bots" bug.
+- **Recipe: never destroy stateful effects directly in `OnRemoveCard`.** Call
+  `CardRemovalGuard.Register(player, cardName, realTeardown, rebuildEcho)`
+  (`CardRemovalGuard.cs`) instead: it defers past the rebuild (1s unscaled +
+  settle frames), re-scans `data.currentCards` by cardName — card still held ⇒
+  rebuild echo ⇒ cancel teardown and run the optional re-assert callback;
+  card gone ⇒ real teardown runs. Real removals tear down ~1s late
+  (accepted); echo reconstruction works for FOREIGN rebuilds too.
+- **Heart deck-rebuild re-assert**: `Player.FullReset` runs
+  `data.stats.ResetStats()` + `weaponHandler.NewGun()`, wiping the heart's
+  stat hijack and staling its saved originals. `HeartEffect.HijackStats`
+  (extracted from `BeginThrowBuffs`) is re-run on the echo path via
+  `HeartEffect.ReassertHijackAfterRebuild()` — re-saves against fresh
+  post-rebuild stats and re-hijacks. The drain is NOT re-sampled: lifetime
+  stays sampled at throw time. Audit result: only Heart runtime-hijacks
+  stats; Portal/Sovereign/Simulacrum state is effect-object state that
+  survives the rebuild untouched.
+
+
 ## Pick-phase hold (verified: Delete card waits the game, sandbox-tested mechanics)
 
 - `CardChoice.RPCA_DonePicking()` (private) is just `IsPicking = false`; `GM_ArmsRace.DoPick` waits `while (IsPicking)`. A Harmony **prefix returning false** holds the entire pick/round-start flow; on release set `CardChoice.instance.IsPicking = false` yourself — no reflection original-call needed.

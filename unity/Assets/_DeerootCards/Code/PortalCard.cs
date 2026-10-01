@@ -42,11 +42,22 @@ namespace DeerootCards.Cards
 
         public override void OnRemoveCard(Player player, Gun gun, GunAmmo gunAmmo, CharacterData data, HealthHandler health, Gravity gravity, Block block, CharacterStatModifiers characterStats)
         {
-            var effect = player.GetComponent<PortalEffect>();
-            if (effect != null)
-            {
-                Destroy(effect);
-            }
+            // UnboundLib fires OnRemoveCard for EVERY held card on any deck
+            // rebuild (Player.FullReset postfix) — destroying the effect here
+            // would wipe live portals. CardRemovalGuard only tears down when
+            // the card is verifiably gone.
+            CardRemovalGuard.Register(
+                player,
+                "Portals",
+                () =>
+                {
+                    var effect = player.GetComponent<PortalEffect>();
+                    if (effect != null)
+                    {
+                        Destroy(effect);
+                    }
+                }
+            );
         }
 
         protected override string GetTitle()

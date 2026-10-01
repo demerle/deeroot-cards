@@ -41,11 +41,25 @@ namespace DeerootCards.Cards
 
         public override void OnRemoveCard(Player player, Gun gun, GunAmmo gunAmmo, CharacterData data, HealthHandler health, Gravity gravity, Block block, CharacterStatModifiers characterStats)
         {
-            var effect = player.GetComponent<HeartEffect>();
-            if (effect != null)
-            {
-                Destroy(effect);
-            }
+            // UnboundLib fires OnRemoveCard for EVERY held card on any deck
+            // rebuild (Player.FullReset postfix) — destroying the effect here
+            // would kill a thrown heart mid-flight. CardRemovalGuard only tears
+            // down when the card is verifiably gone; rebuild echoes re-assert
+            // the stat hijack instead (the hijack was wiped to defaults by the
+            // rebuild and its saved originals are stale).
+            CardRemovalGuard.Register(
+                player,
+                "Heart",
+                () =>
+                {
+                    var effect = player.GetComponent<HeartEffect>();
+                    if (effect != null)
+                    {
+                        Destroy(effect);
+                    }
+                },
+                () => HeartEffect.ReassertHijackAfterRebuild()
+            );
         }
 
         protected override string GetTitle()
@@ -334,6 +348,19 @@ namespace DeerootCards.Cards
             loggedGateBlock[ownerPlayerID] = false;
             UnityEngine.Debug.Log($"[DEER] Heart drain sampled: maxHealth {maxHp:F0} -> lifetime {lifetime:F2}s, drain {dps:F2} hp/s ({dps * drainTickInterval:F2} hp per 0.25s tick)");
 
+            HijackStats(ownerPlayerID);
+        }
+
+        // The throw-time stat hijack, in its own method: the ONLY thing the
+        // deck-rebuild echo path needs to re-run (the drain sample must NOT
+        // be re-sampled — lifetime stays sampled at throw time).
+        private static void HijackStats(int ownerPlayerID)
+        {
+            Player owner = GetPlayerByID(ownerPlayerID);
+            if (owner == null || owner.data == null)
+            {
+                return;
+            }
             var stats = owner.data.stats;
             if (stats != null)
             {
@@ -353,6 +380,30 @@ namespace DeerootCards.Cards
                 savedLifeSteal[ownerPlayerID] = stats.lifeSteal;
                 stats.regen = 0f;
                 stats.lifeSteal = 0f;
+            }
+        }
+
+        // Deck-rebuild echo: the rebuild (RemoveCardFromPlayer →
+        // Player.FullReset → CharacterStatModifiers.ResetStats) wiped the stat
+        // hijack and re-applied the deck fresh, so the saved originals are
+        // stale. Re-save against the current post-rebuild stats and re-hijack.
+        // Never re-samples the drain — lifetime stays sampled at throw time.
+        internal static void ReassertHijackAfterRebuild()
+        {
+            foreach (var kv in states.ToList())
+            {
+                if (kv.Value != HeartState.OnGround)
+                {
+                    continue;
+                }
+                int id = kv.Key;
+                Player owner = GetPlayerByID(id);
+                if (owner == null || owner.data == null || owner.data.dead)
+                {
+                    continue; // dead owners are handled by the death reset paths
+                }
+                UnityEngine.Debug.Log($"[DEER] Heart deck-rebuild echo — re-asserting stat hijack for {owner.data.name}");
+                HijackStats(id);
             }
         }
 
