@@ -416,6 +416,38 @@ The game code is already decompiled on the linux drive:
   `clip.length + 0.1f`; remember the source so a resume/chain-recast can CUT
   a still-playing sting.
 
+## Simulacrum: block card → one-shot Ability card (compiled clean, runtime playtest pending)
+
+- **Converting a block-hook card to a one-shot Ability card (Meteor/TimeStop recipe)**:
+  1. Remove the block stat/downside, set `cardInfo.allowMultiple = false`, reattach the
+     effect to a key-poll `Update()` in the effect component (owner-IsMine gate +
+     `isPlaying && !dead && battleOngoing && timeScale > 0`), resolve splitscreen keys
+     by local-player index, then fire the payload and immediately
+     `OneShotAbility.Consume(player, CardName)`.
+  2. Add the card name to `OneShotAbility.oneShotCardNames` — consume + echo-swallow come free.
+  3. **CRITICAL GOTCHA**: if the card's payload survives the consume (Simulacrum's bot
+     keeps fighting), the removal teardown that despawns "keeperless armies" must be
+     SKIPPED for the cast flow — flag it (`MarkIntentionalRemoval(playerID)` set before
+     `Consume`, `ConsumeIntentionalRemoval(playerID)` consumed once inside the
+     `CardRemovalGuard` teardown). Genuine removals (Delete) still despawn.
+  4. **Options simulation**: the RPC can pass primitives — one-shot payload state is
+     snapshotted on the CASTER and shipped through broadcast RPCs (Simulacrum ships the
+     bot's max health so every client configures the same HP without relying on reading
+     `master.data.maxHealth` locally — plain fields are not PUN-synced).
+- **Sovereign stays block-driven** — the two card files were sed-duplicates, so any
+  "make it an ability" change must be hand-merged into the Simulacrum copy only.
+
+- **Player size is derived, not stored (verified decompile)**: visual scale AND mass both
+  come from `CharacterStatModifiers.ConfigureMassAndSize()` (internal, decompile 260-263):
+  `localScale = Vector3.one * 1.2 * Pow(maxHealth/100*1.2, 0.2) * sizeMultiplier`,
+  `mass = 100 * Pow(maxHealth/100*1.2, 0.8) * sizeMultiplier` (mass is internal — also the
+  known AccessTools gotcha; don't touch `bot.playerVel.mass` directly). Clones: copy the
+  master's `sizeMultiplier` (public field), set `maxHealth`, then invoke
+  `ConfigureMassAndSize` via `AccessTools.Method(...)?.Invoke` and call the public
+  `stats.WasUpdated()` so `ForceMultiplier` re-tunes to the new scale. — size-inheritance
+  hotfix was REVERTED at owner request (2026-10-01); Simulacrum bots spawn at default
+  prefab scale, only HP is inherited.
+
 ## Tooling
 
 - Test logs readable directly at `~/.config/r2modmanPlus-local/ROUNDS/profiles/dev/BepInEx/LogOutput.log` (r2modman dev profile, no need for the user to paste).

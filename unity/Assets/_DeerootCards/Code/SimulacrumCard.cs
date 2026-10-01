@@ -12,8 +12,9 @@ using UnityEngine;
 namespace DeerootCards.Cards
 {
     /// <summary>
-    /// Simulacrum: every time you block, a loyal bot spawns in front of you and
-    /// fights for you. Fixed default kit, 1 HP, unlimited hires.
+    /// Simulacrum: ONE TIME USE ability card (OneShotAbility, Meteor recipe)
+    /// bound to [G]/[N]. Press to summon one loyal bot in front of you; the
+    /// card is consumed. The bot inherits your gun AND your max health.
     ///
     /// Spawning follows the vanilla SpawnMinion recipe: a real player-clone
     /// (instantiated with PhotonNetwork.Instantiate so the game's own networking
@@ -35,10 +36,11 @@ namespace DeerootCards.Cards
     {
         public const string CardName = "Simulacrum";
 
-        // Downside: block recharges this much slower (Block: (cooldown + cdAdd) * cdMultiplier).
-        private const float BlockCooldownAdd = 2f;
-
         private static bool harmonyApplied;
+
+        // Owner keys (splitscreen resolved by local-player index, Meteor C/V recipe).
+        internal const KeyCode KeyP1 = KeyCode.G;
+        internal const KeyCode KeyP2 = KeyCode.N;
 
         public static void Init()
         {
@@ -51,12 +53,20 @@ namespace DeerootCards.Cards
 
         public override void SetupCard(CardInfo cardInfo, Gun gun, ApplyCardStats cardStats, CharacterStatModifiers statModifiers, Block block)
         {
-            // The holder pays a slower block recharge for an infinite bot army.
-            block.cdAdd = BlockCooldownAdd;
+            // per-player unique: won't be re-offered once this player holds it
+            // (Meteor recipe for one-shot cards).
+            cardInfo.allowMultiple = false;
+            // NOTE: deliberately NOT touching `block.*` — the block-downside
+            // belongs to Sovereign only; Simulacrum no longer keys off block.
         }
 
         public override void OnAddCard(Player player, Gun gun, GunAmmo gunAmmo, CharacterData data, HealthHandler health, Gravity gravity, Block block, CharacterStatModifiers characterStats)
         {
+            // The vanilla pick pipeline re-runs during UnboundLib's removal
+            // rebuild — those re-adds are fine here: once Simulacrum is
+            // CONSUMED it's REMOVED before the rebuild, so nothing re-arms it.
+            // Delete-triggered rebuild echoes are already swallowed by the
+            // CardRemovalGuard quiet window below.
             player.gameObject.GetOrAddComponent<SimulacrumEffect>();
             UnityEngine.Debug.Log($"[DEER] SimulacrumCard added to player {player.data.name}");
         }
@@ -65,8 +75,13 @@ namespace DeerootCards.Cards
         {
             // UnboundLib fires OnRemoveCard for EVERY held card on any deck
             // rebuild (Player.FullReset postfix) — destroying the effect here
-            // would despawn a live bot army. CardRemovalGuard only tears down
-            // when the card is verifiably gone. (Sovereign recipe.)
+            // would despawn the cast-spawned bot. CardRemovalGuard only tears
+            // down when the card is verifiably gone. Two cases:
+            //   • consumed via cast → MarkIntentionalRemoval was set: the bot
+            //     must SURVIVE, only the effect goes away.
+            //   • genuinely removed (Delete card etc.) → keeperless army has
+            //     no reason to stand around: despawn owned bots too.
+            // (Sovereign recipe; Sovereign's own path stays block-driven.)
             CardRemovalGuard.Register(
                 player,
                 CardName,
@@ -77,7 +92,11 @@ namespace DeerootCards.Cards
                     {
                         Destroy(effect);
                     }
-                    // A keeperless army has no reason to stand around.
+                    if (SimulacrumBot.ConsumeIntentionalRemoval(player.playerID))
+                    {
+                        UnityEngine.Debug.Log($"[DEER] Simulacrum: intentional consume — bot colony of {player.data.name} survives");
+                        return;
+                    }
                     SimulacrumBot.DespawnOwned(player.playerID);
                 }
             );
@@ -90,7 +109,7 @@ namespace DeerootCards.Cards
 
         protected override string GetDescription()
         {
-            return "Summon subjects to do your bidding";
+            return "Summon a subject to do your bidding. One time use.";
         }
 
         protected override CardInfoStat[] GetStats()
@@ -100,15 +119,29 @@ namespace DeerootCards.Cards
                 new CardInfoStat
                 {
                     positive = true,
-                    stat = "On block",
-                    amount = "Summon bot",
+                    stat = "Simulacrum",
+                    amount = "G",
+                    simepleAmount = CardInfoStat.SimpleAmount.Some
+                },
+                new CardInfoStat
+                {
+                    positive = true,
+                    stat = "Bot gun",
+                    amount = "Yours",
+                    simepleAmount = CardInfoStat.SimpleAmount.Some
+                },
+                new CardInfoStat
+                {
+                    positive = true,
+                    stat = "Bot health",
+                    amount = "Yours",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 },
                 new CardInfoStat
                 {
                     positive = false,
-                    stat = "Block cooldown",
-                    amount = "+2s",
+                    stat = "Uses",
+                    amount = "1",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 }
             };
@@ -136,19 +169,66 @@ namespace DeerootCards.Cards
     }
 
     /// <summary>
-    /// Per-player hook component: wings the spawn onto the vanilla block event
-    /// (Block.BlockAction) — the event fires on every client because
-    /// RPCA_DoBlock is RpcTarget.All, so the spawn is gated to the master's own
-    /// client (IsMine) before the broadcast RPC is even sent.
+    /// Per-player ability component (Meteor recipe): the owner's client polls
+    /// [G] (or [N] for the second local player), spawns the bot via the
+    /// existing SimulacrumBot broadcast RPC, then consumes the card — the bot
+    /// survives the consume (SimulacrumBot.ConsumeIntentionalRemoval).
     /// </summary>
     public class SimulacrumEffect : MonoBehaviour
     {
         private Player player;
-        private Block block;
+
+        private KeyCode triggerKey;
+
+        // HUD icon — standard AbilityHUD recipe (registered in Awake,
+        // unregistered in OnDestroy). No cooldown: consumed on cast.
+        private static Texture2D hudIconTex;
 
         private void Awake()
         {
-            player = GetComponent<Player>();
+            if (player == null)
+            {
+                player = GetComponent<Player>();
+            }
+            EnsureHudTexture();
+            AbilityHUD.Register(this, HudVisible, HudDraw);
+        }
+
+        public void SetPlayer(Player p)
+        {
+            player = p;
+        }
+
+        private void OnDestroy()
+        {
+            AbilityHUD.Unregister(this);
+        }
+
+        private static void EnsureHudTexture()
+        {
+            if (hudIconTex == null)
+            {
+                // filled disc with a contrasting inner notch — reads as "another me"
+                hudIconTex = AbilityHUD.MakeCircleTexture(128, 0, 56);
+            }
+        }
+
+        private bool HudVisible()
+        {
+            return player != null && player.data != null && player.data.view.IsMine && player.data.isPlaying;
+        }
+
+        private void HudDraw(Rect area)
+        {
+            string caption = triggerKey.ToString();
+            AbilityHUD.DrawCircle(
+                area,
+                hudIconTex,
+                new Color(0.62f, 0.32f, 0.90f), // ready: summon purple (card theme)
+                new Color(0.30f, 0.30f, 0.34f), // spent: dark gray
+                true,
+                caption
+            );
         }
 
         private void Start()
@@ -157,39 +237,63 @@ namespace DeerootCards.Cards
             {
                 player = GetComponent<Player>();
             }
-            var blockComp = GetComponent<Block>();
-            if (blockComp != null)
-            {
-                block = blockComp;
-                block.BlockAction += OnBlockAction;
-            }
-            UnityEngine.Debug.Log($"[DEER] SimulacrumEffect started on player {player.data.name}");
+            ResolveKeys();
+            UnityEngine.Debug.Log($"[DEER] SimulacrumEffect ability armed on player {player.data.name}, key {triggerKey}");
         }
 
-        private void OnDestroy()
+        private void ResolveKeys()
         {
-            if (block != null)
-            {
-                block.BlockAction -= OnBlockAction;
-            }
-        }
-
-        private void OnBlockAction(BlockTrigger.BlockTriggerType triggerType)
-        {
-            // Vanilla ShieldCharge re-triggers blocks for free — never translate
-            // those into an infinite bot print.
-            if (triggerType == BlockTrigger.BlockTriggerType.ShieldCharge)
+            triggerKey = SimulacrumCard.KeyP1;
+            if (player == null || player.data == null)
             {
                 return;
             }
-            if (player == null || player.data == null || !player.data.view.IsMine)
+            int localIndex = 0;
+            int localCount = 0;
+            foreach (var p in PlayerManager.instance.players)
             {
-                return; // only the master's client initiates the spawn
+                if (p == null || p.data == null)
+                {
+                    continue;
+                }
+                if (p.data.view.IsMine)
+                {
+                    if (p == player)
+                    {
+                        localIndex = localCount;
+                    }
+                    localCount++;
+                }
             }
-            if (!player.data.isPlaying)
+            if (localCount > 1 && localIndex == 1)
             {
-                return; // never during pick phase / game over
+                triggerKey = SimulacrumCard.KeyP2;
             }
+            UnityEngine.Debug.Log($"[DEER] Simulacrum key resolved: {triggerKey} (local player index {localIndex}/{localCount})");
+        }
+
+        private void Update()
+        {
+            if (player == null || player.data == null || player.data.view == null)
+            {
+                return;
+            }
+            if (!player.data.view.IsMine)
+            {
+                return;
+            }
+
+            bool canTrigger = player.data.isPlaying
+                && !player.data.dead
+                && GameManager.instance.battleOngoing
+                && TimeHandler.timeScale > 0f;
+
+            if (!canTrigger || !Input.GetKeyDown(triggerKey))
+            {
+                return;
+            }
+
+            UnityEngine.Debug.Log("[DEER] Simulacrum trigger");
 
             // Spawn right in front of the player, along their shield/aim direction.
             Vector2 aim = player.data.aimDirection;
@@ -199,7 +303,16 @@ namespace DeerootCards.Cards
             }
             Vector3 pos = player.transform.position + (Vector3)(aim.normalized * 1.5f) + Vector3.up * 0.3f;
             pos.z = 0f;
-            SimulacrumBot.SpawnBot(player, pos);
+
+            // Health snapshot is taken HERE on the casting client and shipped
+            // through the RPC — master.data.maxHealth is a plain local field,
+            // so per-client reads could diverge; Meteor casts snapshot
+            // velocity/damage the same way.
+            SimulacrumBot.SpawnBot(player, pos, player.data.maxHealth);
+
+            // Consume the card immediately: the bot is already spawning.
+            SimulacrumBot.MarkIntentionalRemoval(player.playerID);
+            OneShotAbility.Consume(player, SimulacrumCard.CardName);
         }
     }
 
@@ -210,8 +323,8 @@ namespace DeerootCards.Cards
     /// </summary>
     public static class SimulacrumBot
     {
-        // 1 HP = max health 1 (any nonzero damage kills).
-        internal const float BotMaxHealth = 1f;
+        // (1-HP bots belong to Sovereign only; Simulacrum bots snapshot the
+        // master's max health at cast — shipped through the RPC as a primitive.)
 
         // Brain tuning (verified vanilla PlayerAI/PlayerAIMinion behaviours).
         internal const float ShootRange = 14f;   // prefer shooting from mid range
@@ -229,10 +342,33 @@ namespace DeerootCards.Cards
 
         private static readonly List<BotEntry> bots = new List<BotEntry>();
 
+        // playerIDs whose Simulacrum card was consumed BY A CAST (vs Delete-)
+        // — their removal teardown must NOT despawn the cast-spawned bot.
+        private static readonly HashSet<int> intentionalRemovals = new HashSet<int>();
+
+        /// <summary>
+        /// Flags a player's removal teardown as "consumed by cast": the bot
+        /// survives the OneShotAbility consume that follows.
+        /// </summary>
+        internal static void MarkIntentionalRemoval(int playerID)
+        {
+            intentionalRemovals.Add(playerID);
+        }
+
+        /// <summary>Consume-and-clear the flag (false = genuine removal).</summary>
+        internal static bool ConsumeIntentionalRemoval(int playerID)
+        {
+            if (intentionalRemovals.Remove(playerID))
+            {
+                return true;
+            }
+            return false;
+        }
+
         private static bool hooksRegistered;
 
         /// <summary>Owner-side entry: instantiate the clone, then broadcast config.</summary>
-        public static void SpawnBot(Player master, Vector3 pos)
+        public static void SpawnBot(Player master, Vector3 pos, float botMaxHealth)
         {
             var prefab = PlayerAssigner.instance != null ? PlayerAssigner.instance.playerPrefab : null;
             if (prefab == null)
@@ -253,10 +389,10 @@ namespace DeerootCards.Cards
             }
 
             var botView = go.GetComponent<PhotonView>();
-            UnityEngine.Debug.Log($"[DEER] Simulacrum: master {master.playerID} blocked at {pos}, bot viewID {botView.ViewID}");
+            UnityEngine.Debug.Log($"[DEER] Simulacrum: master {master.playerID} cast at {pos} with {botMaxHealth} HP, bot viewID {botView.ViewID}");
 
             // One broadcast configures every client's clone (owner included).
-            NetworkingManager.RPC(typeof(SimulacrumBot), nameof(RPC_SpawnBot), master.playerID, botView.ViewID, pos.x, pos.y);
+            NetworkingManager.RPC(typeof(SimulacrumBot), nameof(RPC_SpawnBot), master.playerID, botView.ViewID, pos.x, pos.y, botMaxHealth);
         }
 
         /// <summary>
@@ -266,12 +402,12 @@ namespace DeerootCards.Cards
         /// SpawnMinion recipe.
         /// </summary>
         [UnboundRPC]
-        public static void RPC_SpawnBot(int masterPlayerID, int botViewID, float spawnPosX, float spawnPosY)
+        public static void RPC_SpawnBot(int masterPlayerID, int botViewID, float spawnPosX, float spawnPosY, float botMaxHealth)
         {
-            StartCoroutineDeferred(botViewID, masterPlayerID, new Vector3(spawnPosX, spawnPosY, 0f));
+            StartCoroutineDeferred(botViewID, masterPlayerID, new Vector3(spawnPosX, spawnPosY, 0f), botMaxHealth);
         }
 
-        private static void ConfigureBot(int masterPlayerID, int botViewID, Vector3 spawnPos)
+        private static void ConfigureBot(int masterPlayerID, int botViewID, Vector3 spawnPos, float botMaxHealth)
         {
             var view = PhotonNetwork.GetPhotonView(botViewID);
             if (view == null || view.gameObject == null)
@@ -304,8 +440,11 @@ namespace DeerootCards.Cards
             bot.SetAI(master);
             bot.isPlaying = true;
             bot.healthHandler.DestroyOnDeath = true;
-            bot.maxHealth = BotMaxHealth;
-            bot.health = BotMaxHealth;
+            // Health snapshot from the caster (via RPC primitive) — the bot
+            // inherits the master's max health at cast time.
+            float clampedHealth = Mathf.Max(botMaxHealth, 1f);
+            bot.maxHealth = clampedHealth;
+            bot.health = clampedHealth;
 
             var skin = bot.GetComponentInChildren<PlayerSkinHandler>(true);
             if (skin != null)
@@ -390,15 +529,15 @@ namespace DeerootCards.Cards
 
         private static System.Reflection.FieldInfo velocityField;
 
-        private static void StartCoroutineDeferred(int botViewID, int masterPlayerID, Vector3 spawnPos)
+        private static void StartCoroutineDeferred(int botViewID, int masterPlayerID, Vector3 spawnPos, float botMaxHealth)
         {
             // The networked clone may arrive after the RPC on a given client
             // (Photon doesn't order these globally) — retry for up to a second.
             var host = SimulacrumRunner.Get();
-            host.StartCoroutine(DeferredConfig(botViewID, masterPlayerID, spawnPos));
+            host.StartCoroutine(DeferredConfig(botViewID, masterPlayerID, spawnPos, botMaxHealth));
         }
 
-        private static IEnumerator DeferredConfig(int botViewID, int masterPlayerID, Vector3 spawnPos)
+        private static IEnumerator DeferredConfig(int botViewID, int masterPlayerID, Vector3 spawnPos, float botMaxHealth)
         {
             for (float waited = 0f; waited < 1f; waited += Time.unscaledDeltaTime)
             {
@@ -408,7 +547,7 @@ namespace DeerootCards.Cards
                 }
                 yield return null;
             }
-            ConfigureBot(masterPlayerID, botViewID, spawnPos);
+            ConfigureBot(masterPlayerID, botViewID, spawnPos, botMaxHealth);
         }
 
         /// <summary>Destroys every bot whose master has this playerID (all clients).</summary>
