@@ -184,6 +184,24 @@ namespace DeerootCards.Cards
             return active && agents.Contains(playerID);
         }
 
+        /// <summary>
+        /// Bots (Sovereign/Simulacrum) share their master's playerID, so a
+        /// plain IsAgent(playerID) check misclassifies the bot as its master.
+        /// Every per-instance simulation patch here consults this instead:
+        /// a bot is NEVER an agent — it is a frozen statue too, even when its
+        /// master walks around inside the stopped world. Registry-based, not
+        /// team-based, so this freezes all bots, friend or foe.
+        /// </summary>
+        internal static bool IsSimAgent(CharacterData data)
+        {
+            return data != null && !IsBotData(data) && data.player != null && IsAgent(data.player.playerID);
+        }
+
+        internal static bool IsBotData(CharacterData data)
+        {
+            return SovereignBot.IsBotData(data) || SimulacrumBot.IsBotData(data);
+        }
+
         internal static void EnsureDriver()
         {
             if (Object.FindObjectOfType<TimeStopDriver>() != null)
@@ -224,6 +242,11 @@ namespace DeerootCards.Cards
                 }
             }
             UnityEngine.Debug.Log("[DEER] TimeStop END — time resumes");
+            // Forces a frozen bot failed to shed (its statue branch parks the
+            // Rigidbody2D channel, not PlayerVelocity.velocity) would otherwise
+            // integrate as one lump on resume and punt the bot. Clear them.
+            SovereignBot.SettleBotVelocities();
+            SimulacrumBot.SettleBotVelocities();
             DrainResumeQueue();
         }
 
@@ -731,7 +754,7 @@ namespace DeerootCards.Cards
             {
                 return true;
             }
-            if (TimeStopState.IsAgent(data.player.playerID) && data.view.IsMine)
+            if (TimeStopState.IsSimAgent(data) && data.view.IsMine)
             {
                 // Agent owner: the vanilla body runs at agent time, so jumps,
                 // knockback and walking keep integrating inside the stop.
@@ -786,7 +809,7 @@ namespace DeerootCards.Cards
             {
                 return true;
             }
-            if (TimeStopState.IsAgent(data.player.playerID) && data.view.IsMine)
+            if (TimeStopState.IsSimAgent(data) && data.view.IsMine)
             {
                 playerMovementSaved = TimeHandler.timeScale;
                 TimeHandler.timeScale = 1f;
@@ -819,7 +842,7 @@ namespace DeerootCards.Cards
             {
                 return true;
             }
-            if (TimeStopState.IsAgent(data.player.playerID) && data.view.IsMine)
+            if (TimeStopState.IsSimAgent(data) && data.view.IsMine)
             {
                 gravitySaved = TimeHandler.timeScale;
                 TimeHandler.timeScale = 1f;
@@ -847,7 +870,7 @@ namespace DeerootCards.Cards
             {
                 return true;
             }
-            if (TimeStopState.IsAgent(__instance.player.playerID) && __instance.view.IsMine)
+            if (TimeStopState.IsSimAgent(__instance) && __instance.view.IsMine)
             {
                 characterDataSavedDt = TimeHandler.deltaTime;
                 TimeHandler.deltaTime = Time.deltaTime;
@@ -876,7 +899,7 @@ namespace DeerootCards.Cards
             {
                 return true;
             }
-            if (TimeStopState.IsAgent(__instance.player.playerID) && __instance.view.IsMine)
+            if (TimeStopState.IsSimAgent(__instance) && __instance.view.IsMine)
             {
                 characterDataSavedFdt = TimeHandler.fixedDeltaTime;
                 TimeHandler.fixedDeltaTime = Time.fixedDeltaTime;
@@ -906,7 +929,7 @@ namespace DeerootCards.Cards
                 return true;
             }
             var data = __instance.GetComponent<CharacterData>();
-            if (data == null || data.player == null || !TimeStopState.IsAgent(data.player.playerID) || !data.view.IsMine)
+            if (data == null || data.player == null || TimeStopState.IsSimAgent(data) == false || !data.view.IsMine)
             {
                 return true;
             }
@@ -938,11 +961,7 @@ namespace DeerootCards.Cards
                 return true;
             }
             var player = __instance.player;
-            if (player == null || !TimeStopState.IsAgent(player.playerID))
-            {
-                return true;
-            }
-            if (!player.data.view.IsMine)
+            if (player == null || TimeStopState.IsSimAgent(player.data) == false || !player.data.view.IsMine)
             {
                 return true;
             }
@@ -974,7 +993,7 @@ namespace DeerootCards.Cards
             }
             var gun = __instance.GetComponentInParent<Gun>();
             var player = gun != null ? gun.player : null;
-            if (player == null || !TimeStopState.IsAgent(player.playerID) || !player.data.view.IsMine)
+            if (player == null || TimeStopState.IsSimAgent(player.data) == false || !player.data.view.IsMine)
             {
                 return true;
             }
@@ -1026,7 +1045,9 @@ namespace DeerootCards.Cards
             {
                 return true;
             }
-            return TimeStopState.IsAgent(player.playerID); // frozen = block fire
+            // Bots share their master's playerID — a bot is never an agent,
+            // even when its master walks the stopped world.
+            return TimeStopState.IsSimAgent(player.data); // frozen = block fire
         }
 
         [HarmonyPatch(typeof(Block), "RPCA_DoBlock")]
@@ -1042,7 +1063,7 @@ namespace DeerootCards.Cards
             {
                 return true;
             }
-            return TimeStopState.IsAgent(data.player.playerID); // frozen = block
+            return TimeStopState.IsSimAgent(data); // frozen = block
         }
 
         // --- 9. Parked bullets are HARMLESS: nothing can be hit while the
@@ -1091,7 +1112,7 @@ namespace DeerootCards.Cards
                 return true;
             }
             var player = ___data != null ? ___data.player : null;
-            if (player == null || !TimeStopState.IsAgent(player.playerID) || !___data.view.IsMine)
+            if (player == null || TimeStopState.IsSimAgent(___data) == false || !___data.view.IsMine)
             {
                 return true;
             }

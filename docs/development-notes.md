@@ -397,6 +397,32 @@ The game code is already decompiled on the linux drive:
 
 - Test logs readable directly at `~/.config/r2modmanPlus-local/ROUNDS/profiles/dev/BepInEx/LogOutput.log` (r2modman dev profile, no need for the user to paste).
 
+## Bot freeze in Time Stop (compiled clean, runtime playtest pending)
+
+- Bots (Sovereign/Simulacrum) share their master's `playerID`
+  (`ConfigureBot`: `bot.player.playerID = master.playerID`). Any per-player
+  effect keyed off `playerID` ALONE misclassifies the bot as its master.
+- Bug: Time Stop's agent checks (`IsAgent(playerID)`) let a bot "become" its
+  master when the master acted inside the stopped world — the bot
+  half-integrated (gravity/velocity at agent time, walk force pinned at 0 ⇒
+  glitchy jitter), kept aiming, and queued jump impulses that launched it on
+  resume.
+- Fix: every per-instance simulation patch in `TimeStopPatches` classifies via
+  `TimeStopState.IsSimAgent(CharacterData)` = agent AND NOT `IsBotData`
+  (registry-based, so ALL bots freeze — friend or foe, on every client; each
+  client holds the registries via the existing RPC sync). Bots also never act
+  via the Gun.Attack / Block agent gates anymore.
+- Both bot brains early-return with `data.input.ResetInput()` while
+  `TimeStopState.IsActive` — no aiming, no target acquisition, no jump-impulse
+  queueing. A bot brain created mid-stop (spawn during the stop) starts
+  frozen automatically.
+- `TimeStopState.End()` calls `SovereignBot.SettleBotVelocities()` /
+  `SimulacrumBot.SettleBotVelocities()` to zero queued `PlayerVelocity.velocity`
+  so nothing queued mid-stop launches a bot on resume.
+- GOTCHA: `PlayerVelocity.velocity` / `mass` / `AddForce` are `internal` to
+  the game assembly — write `velocity` via
+  `AccessTools.Field(typeof(PlayerVelocity), "velocity")`.
+
 ## Conventions
 
 - New stat cards: set values in `SetupCard` on components whose stat fields the doc says are copied off cards (Gun/Block/CharacterStatModifiers + GunAmmo).

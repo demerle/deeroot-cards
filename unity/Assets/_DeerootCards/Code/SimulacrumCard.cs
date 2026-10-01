@@ -474,6 +474,33 @@ namespace DeerootCards.Cards
         {
             return p != null && p.data != null && bots.Any(e => e.Bot != null && e.Bot.player == p);
         }
+
+        // TimeStop uses this to classify bots as statues (mirror of SovereignBot.IsBotData).
+        internal static bool IsBotData(CharacterData data)
+        {
+            return data != null && bots.Any(e => e.Bot == data);
+        }
+
+        /// <summary>
+        /// Time Stop resume hygiene: drop the frozen bots' accumulated
+        /// PlayerVelocity.velocity so nothing queued mid-stop launches them.
+        /// PlayerVelocity's velocity/mass/AddForce are all internal to the
+        /// game assembly, so write the field via AccessTools (the established
+        /// idiom for game internals).
+        /// </summary>
+        internal static void SettleBotVelocities()
+        {
+            var velocityField = AccessTools.Field(typeof(PlayerVelocity), "velocity");
+            for (int i = 0; i < bots.Count; i++)
+            {
+                var botData = bots[i].Bot;
+                if (botData == null || botData.playerVel == null)
+                {
+                    continue;
+                }
+                velocityField?.SetValue(botData.playerVel, Vector2.zero);
+            }
+        }
     }
 
     /// <summary>
@@ -523,6 +550,20 @@ namespace DeerootCards.Cards
             {
                 UnityEngine.Debug.Log($"[DEER] Simulacrum: master died — despawning bot");
                 DespawnSelf();
+                return;
+            }
+
+            // Time Stop frozen-world discipline: the bot shares its master's
+            // playerID, so WITHOUT this gate a master acting inside the stop
+            // misclassifies the bot as an agent — it half-integrates at agent
+            // time while walk force stays zeroed (glitchy jitter), aims
+            // continuously and queues jump impulses that launch it on resume.
+            // Hold statue: reset the fake-input channel each frame, acquire
+            // nothing, queue nothing. All bots freeze here, friend or foe;
+            // spawn-during-stop is covered too (a fresh brain starts frozen).
+            if (TimeStopState.IsActive)
+            {
+                data.input.ResetInput();
                 return;
             }
 
