@@ -33,6 +33,7 @@ namespace DeerootCards
             RunInit("FullCounterCard", () => { Cards.FullCounterCard.Init(); }); // doubles damage inside Block.blocked, including own bullets
             RunInit("AmpWallCard", () => { Cards.AmpWallCard.Init(); }); // applies the amp-wall MoveTransform bullet patch
             RunInit("OneShotCardPoolFilter", () => { Cards.OneShotCardPoolFilter.Init(); }); // keeps registered one-shot cards out of the between-round pick pool
+            RunInit("KillStreakTracker", () => { Cards.KillStreakTracker.Init(); }); // death RPC patches + streak state + HUD driver
             RunInit("TimeStopCard", () => { Cards.TimeStopCard.Init(); }); // pins TimeHandler statics to 0 + agent-hijack patches while a stop runs
             CustomCard.BuildCard<OverdriveCard>();
             CustomCard.BuildCard<BlinkCard>();
@@ -54,6 +55,7 @@ namespace DeerootCards
             CustomCard.BuildCard<SlowAndSteadyCard>();
             CustomCard.BuildCard<MeteorCard>();
             CustomCard.BuildCard<TimeStopCard>();
+            CustomCard.BuildCard<KillStreakCard>();
         }
 
         private static void RunInit(string name, Action init)

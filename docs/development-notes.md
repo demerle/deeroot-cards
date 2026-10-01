@@ -459,6 +459,68 @@ The game code is already decompiled on the linux drive:
   Deterministic on all clients (names are const strings) → Photon spawn stays consistent.
   Direct `CardChoice.AddCard(CardInfo)` bypasses the pool — that's the future award path.
 
+## KillStreak card (KillStreakCard.cs; compiled clean, runtime playtest pending)
+- **Killer attribution is FREE — `data.lastSourceOfDamage` (CharacterData:86)**: vanilla
+  `HealthHandler.DoDamage` (single damage funnel) writes it right before firing the
+  death RPC. No custom damage tracking needed.
+- **Death surface = BOTH death RPCs**: `HealthHandler.RPCA_Die` (real death) and
+  `RPCA_Die_Phoenix` (Phoenix revival) are `[PunRPC]` `RpcTarget.All` → every client
+  sees every death; postfixes on both are the whole event surface. The Phoenix
+  double-death resets the streak on EACH death as a free consequence.
+- **Authority rule: only the killer's own client credits its own streak**
+  (`killer.data.view.IsMine` gate). `lastSourceOfDamage` is per-client sim state and
+  NOT photon-synced, so trusting it cross-client is wrong; the killer's own client
+  always saw the lethal damage with itself as source. Milestone grants are then one
+  broadcast `NetworkingManager.RPC` (`[UnboundRPC]`, primitives only) that every
+  client executes deterministically — the `DoubleCard.ApplyCardToPlayer` recipe made
+  network-safe.
+- **CRITICAL: `DoubleCard.ApplyCardToPlayer` (and `ApplyCardStats.ApplyStats`) do NOT
+  fire the card's `CustomCard.OnAddCard`** — a plain stat copy leaves ability cards
+  INERT (Meteor/Simulacrum/TimeStop arm their effect components ONLY in OnAddCard).
+  `CardAward.GiveCardToPlayer(player, cardName)` (new shared helper, CardAward.cs)
+  = DoubleCard's stat copy (minus `health.Revive()` — awards land mid-battle and
+  Revive full-heals) PLUS `cardMaster.GetComponent<CustomCard>().OnAddCard(...)`.
+  Verified: UnboundLib `CustomCard.BuildCard<T>` does `val.AddComponent<T>()`, so the
+  registered master prefab DOES carry the CustomCard component.
+- **Duplicate one-shot grants work**: `allowMultiple=false` only affects pick-pool
+  dedupe (`SpawnUniqueCard`); programmatic grants always apply. `OneShotAbility.Consume`
+  removes the FIRST matching index — one copy per consume. NOT yet runtime-verified.
+- **Bot interplay**: bots share master.playerID, but a plain `streaks[bot.playerID]=0`
+  on bot death would wipe the MASTER's streak — bot victims are registry-gated via
+  `SovereignBot.IsBot / SimulacrumBot.IsBot`. Bot KILLS credit the master (same
+  playerID key; bot prefab view is owned by the master's client so the IsMine gate
+  passes there).
+- **Persistence across rounds**: static `Dictionary<int,int>` — players keep their
+  playerID within a match, so count survives round boundaries for free; cleared on
+  `GameModeHooks.HookGameStart` so a fresh match starts fresh.
+- **Loop math**: displayed = `((streak-1) % LoopLength) + 1` (LoopLength=5); milestones
+  3/4/5 = Meteor/Simulacrum/TimeStop (KillStreakTracker.MilestoneCardFor). Grant fires
+  on the increment that lands displayed in 3/4/5 — no old/new comparison needed, the
+  mapping is total.
+- **HUD**: own DontDestroyOnLoad OnGUI driver (`KillStreakHud.cs`) — deliberately not
+  an AbilityHUD registration (that row is a shared bottom-left column for ability
+  icons; this counter wants its own left-edge vertical column). Circles drawn with
+  AbilityHUD's shared `MakeCircleTexture` + `DrawCircle` presentation for visual
+  consistency. Visible only while the LOCAL player holds KillStreak (checked fresh in
+  OnGUI — no effect component at all on the player; the whole card is stateless).
+- **PITFALL (playtest-caught 2026-10-01): `Harmony.PatchAll(Type)` does NOT recurse
+  into nested types.** A container class holding two nested `[HarmonyPatch]` classes,
+  passed to `PatchAll(container)` as a container with no annotated patch methods of
+  its own, is a SILENT no-op — patches off, no error thrown. Pattern: every patch
+  class gets its own `harmony.PatchAll(typeof(ThatPatchClass))`, DELETE-card style.
+  Verify installs after registering: log
+  `string.Join(", ", harmony.GetPatchedMethods().Select(m => m.Name))` at init so a
+  no-op can never hide again.
+- **PITFALL (playtest-caught 2026-10-01): Unbound `GameModeManager.AddHook` actions
+  must return `IEnumerator`.** A `gm => { body(); }` lambda converts to
+  `Func<..., IEnumerator>` only with `null` → NRE in `ErrorTolerantHook` AFTER the
+  body ran (misleading: the reset log printed, then the hook blew up). Mirror
+  `TimeStopState.EndAllForRound()`: `gm => Routine()`,
+  `internal static IEnumerator Routine() { body(); yield break; }`.
+- `PlayerSkinBank.GetPlayerSkinColors(playerID).color` is a single `Color`, NOT a
+  Color[] (as `PlayerSkin.color` public field).
+
+
 ## Tooling
 
 - Test logs readable directly at `~/.config/r2modmanPlus-local/ROUNDS/profiles/dev/BepInEx/LogOutput.log` (r2modman dev profile, no need for the user to paste).
