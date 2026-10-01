@@ -448,6 +448,17 @@ The game code is already decompiled on the linux drive:
   hotfix was REVERTED at owner request (2026-10-01); Simulacrum bots spawn at default
   prefab scale, only HP is inherited.
 
+- **One-shot cards out of the pick pool (compiled clean, runtime playtest pending)**:
+  every between-round offer is drawn from ONE private method — `CardChoice.GetRanomCard()`
+  (decompile CardChoice.cs 244-285), rarity-weighting `CardChoice.instance.cards`.
+  Exclusion recipe: Harmony prefix/postfix on that method — prefix swaps `cards` to a
+  filtered copy (drop every `OneShotAbility.IsOneShot(cardName)`), postfix restores.
+  No transpiler; weights self-normalize because the orig recomputes them from whatever
+  array it sees. NEVER return an empty filtered pool (`SpawnUniqueCard` recurses
+  infinitely when it can't find a spawnable card) and never re-roll in the postfix.
+  Deterministic on all clients (names are const strings) → Photon spawn stays consistent.
+  Direct `CardChoice.AddCard(CardInfo)` bypasses the pool — that's the future award path.
+
 ## Tooling
 
 - Test logs readable directly at `~/.config/r2modmanPlus-local/ROUNDS/profiles/dev/BepInEx/LogOutput.log` (r2modman dev profile, no need for the user to paste).

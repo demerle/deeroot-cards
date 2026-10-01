@@ -32,6 +32,7 @@ namespace DeerootCards
             RunInit("DynamicFieldCard", () => { Cards.DynamicFieldCard.Init(); }); // no patches — vanilla block event drives the field
             RunInit("FullCounterCard", () => { Cards.FullCounterCard.Init(); }); // doubles damage inside Block.blocked, including own bullets
             RunInit("AmpWallCard", () => { Cards.AmpWallCard.Init(); }); // applies the amp-wall MoveTransform bullet patch
+            RunInit("OneShotCardPoolFilter", () => { Cards.OneShotCardPoolFilter.Init(); }); // keeps registered one-shot cards out of the between-round pick pool
             RunInit("TimeStopCard", () => { Cards.TimeStopCard.Init(); }); // pins TimeHandler statics to 0 + agent-hijack patches while a stop runs
             CustomCard.BuildCard<OverdriveCard>();
             CustomCard.BuildCard<BlinkCard>();
