@@ -35,6 +35,7 @@ namespace DeerootCards
             RunInit("OneShotCardPoolFilter", () => { Cards.OneShotCardPoolFilter.Init(); }); // keeps registered one-shot cards out of the between-round pick pool
             RunInit("KillStreakTracker", () => { Cards.KillStreakTracker.Init(); }); // death RPC patches + streak state + HUD driver
             RunInit("TimeStopCard", () => { Cards.TimeStopCard.Init(); }); // pins TimeHandler statics to 0 + agent-hijack patches while a stop runs
+            RunInit("BoplTimeStopCard", () => { Cards.BoplTimeStopCard.Init(); }); // swaps the vanilla AbyssalCountdown carrier's payload for a Time Stop cast
             CustomCard.BuildCard<OverdriveCard>();
             CustomCard.BuildCard<BlinkCard>();
             CustomCard.BuildCard<DiveCard>();
@@ -55,6 +56,7 @@ namespace DeerootCards
             CustomCard.BuildCard<SlowAndSteadyCard>();
             CustomCard.BuildCard<MeteorCard>();
             CustomCard.BuildCard<TimeStopCard>();
+            CustomCard.BuildCard<BoplTimeStopCard>();
             CustomCard.BuildCard<KillStreakCard>();
         }
 

@@ -376,6 +376,7 @@ namespace DeerootCards.Cards
         internal static readonly HashSet<string> AbilityCardNames = new HashSet<string>
         {
             TimeStopCard.CardName,
+            BoplTimeStopCard.CardName,
             MeteorCard.CardName,
             "Portals",
             "Blink",

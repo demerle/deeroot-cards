@@ -1034,6 +1034,9 @@ namespace DeerootCards.Cards
     /// recipe (Gravity.gravityForce for acceleration, PlayerCollision.mask
     /// for map sweeps). Bullet kills arrive via the BulletHeartPatch sweep;
     /// wall/ceiling contact kills the owner, floor landings are safe.
+    /// Grounding is re-verified every physics tick (vanilla LegRaycasters →
+    /// CharacterData.Ground recipe): a floor that slides away or disappears
+    /// un-grounds the settled heart, which drops again instead of hovering.
     /// </summary>
     public class HeartObject : Damagable
     {
@@ -1052,6 +1055,10 @@ namespace DeerootCards.Cards
         private const float settleSpeed = 0.5f;
         private const float maxSubstep = 0.3f; // never move more than this per cast step
         private const float deathFallY = -200f; // fell out of the world entirely
+        // settled-heart floor re-check sweep (past the rest contact): how far
+        // below the landing spot still counts as "the floor is here" — covers
+        // micro platform jitter/bobbing before the heart re-drops
+        private const float groundProbeSlack = 0.2f;
 
         // player-recipe gravity ramp: airborne, force rises linearly with time
         // since grounded (Gravity.cs: pow(sinceGrounded, exponent)); exponent = 1
@@ -1107,6 +1114,20 @@ namespace DeerootCards.Cards
             else
             {
                 sinceAir = 0f; // grounded: no pull, exactly like the player
+                // vanilla groundedness is only ever one physics tick deep:
+                // LegRaycasters re-touches Ground every FixedUpdate and
+                // CharacterData.Ground clears isGrounded the tick the ray
+                // misses. Mirror that — re-verify the floor every tick so a
+                // platform that slides away or is destroyed out from under
+                // the settled heart un-grounds it and it drops again instead
+                // of hovering at its last contact point forever.
+                if (!FloorStillBelow())
+                {
+                    grounded = false;
+                    velocity = Vector2.zero;
+                    loggedSettle = false; // the re-landing logs again
+                    UnityEngine.Debug.Log($"[DEER] Heart's floor is gone — re-dropping at {transform.position}");
+                }
             }
             if (grounded && velocity.magnitude < settleSpeed)
             {
@@ -1184,6 +1205,35 @@ namespace DeerootCards.Cards
             {
                 HeartWalled(transform.position);
             }
+        }
+
+        // the vanilla "still grounded?" test, miniaturized: while settled,
+        // sweep the heart's disc straight down a hair past its rest contact.
+        // Still touching an up-facing, non-player surface = the floor is
+        // still here; a missing hit means the platform moved away, fell or
+        // was destroyed — all resolve to "no floor below" the same way, so
+        // the heart un-grounds and re-drops (mechanism-agnostic).
+        private bool FloorStillBelow()
+        {
+            RaycastHit2D[] hits = Physics2D.CircleCastAll(
+                transform.position,
+                radius * transform.localScale.x,
+                Vector2.down,
+                groundProbeSlack,
+                heartMask
+            );
+            foreach (var h in hits)
+            {
+                if (!h || h.collider == null || h.transform.GetComponentInParent<Player>() != null)
+                {
+                    continue; // map geometry only — never players
+                }
+                if (Vector2.Dot(h.normal, Vector2.up) >= 0.5f)
+                {
+                    return true; // same floor rule the landing path uses
+                }
+            }
+            return false;
         }
 
         // wall/ceiling hit or lost below the world: kill via the network path
