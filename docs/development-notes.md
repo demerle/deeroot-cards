@@ -495,6 +495,22 @@ The game code is already decompiled on the linux drive:
 - **Killer attribution is FREE — `data.lastSourceOfDamage` (CharacterData:86)**: vanilla
   `HealthHandler.DoDamage` (single damage funnel) writes it right before firing the
   death RPC. No custom damage tracking needed.
+  **BUT it's clobber-prone (fixed 2026-10)**: `DoDamage` overwrites the field on
+  EVERY tick, including environment ticks with `damagingPlayer = null` — a
+  "shot them into the wall/off the edge" kill runs its wall/void tick LAST, wiping
+  the shooter before `RPCA_Die`. Fix in `KillStreakTracker`: own
+  `lastPlayerHurtBy[playerID] = {player, time}` table written by a Harmony
+  **Prefix on `HealthHandler.DoDamage`** only when `damagingPlayer != null`
+  (null-ticks can never clobber it); `ResolveKiller` prefers it within a
+  5s `CreditWindowSeconds`, falls back to vanilla's field, logs
+  `credited via knockback/started-kill`. Victim's slot consumed inside
+  `ResolveKiller` (read → remove → return), cleared in `HookGameStart` reset —
+  LESSON PLAYTEST-CAUGHT 2026-10: an early version cleared the victim's slot in
+  `OnPlayerDeath` BEFORE `CreditKiller` ran, wiping the witness so every
+  knockback kill silently degraded to vanilla attribution (zero knockback/expired
+  log lines was the smoking gun). Feature code that consumes derived state must
+  own its clear, at the point of consumption, never earlier. The bot-victim
+  anti-farm gate runs BEFORE resolution, so this can't reopen the bot farm.
 - **Death surface = BOTH death RPCs**: `HealthHandler.RPCA_Die` (real death) and
   `RPCA_Die_Phoenix` (Phoenix revival) are `[PunRPC]` `RpcTarget.All` → every client
   sees every death; postfixes on both are the whole event surface. The Phoenix

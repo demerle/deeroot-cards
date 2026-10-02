@@ -16,12 +16,18 @@ namespace DeerootCards.Cards
     ///     RpcTarget.All, so EVERY client learns of EVERY death. Postfixes on
     ///     both cover the whole death surface, including the Phoenix double
     ///     death (each death resets the streak independently, per spec).
-    ///   • Killer attribution is FREE: `HealthHandler.DoDamage` always writes
-    ///     `data.lastSourceOfDamage = damagingPlayer` (HealthHandler.cs:241)
-    ///     right before firing the death RPC. Pit/wall deaths leave it stale
-    ///     per client — so we only credit when the killer's data.view.IsMine:
-    ///     the killer's OWN client simulated or received the lethal damage
-    ///     with itself as source, making it the authority for its own streak.
+    ///   • Killer attribution: `HealthHandler.DoDamage` overwrites
+    ///     `data.lastSourceOfDamage = damagingPlayer` (HealthHandler.cs:241) on
+    ///     EVERY tick — including environment ticks with damagingPlayer == null.
+    ///     So a "shot them off the map edge" kill runs: bullet tick (writes
+    ///     shooter) → wall/void tick (writes NULL, is the lethal one) →
+    ///     RPCA_Die sees null and the shooter is swallowed. Fix: our own
+    ///     `lastPlayerHurtBy` table, written by a DoDamage PREFIX only when
+    ///     damagingPlayer != null (null-ticks can never clobber it), resolved
+    ///     with a 5s credit window; vanilla's field stays as fallback.
+    ///     The killer's data.view.IsMine gate still applies: the killer's OWN
+    ///     client simulated the lethal damage chain, making it the authority
+    ///     for its own streak.
     ///   • Simulacrum/Sovereign bots inherit their master's playerID, so a bot
     ///     kill increments the master's streak entry (bots are the master's
     ///     proxies). A bot DEATH is out of the ledger entirely: it neither
@@ -44,9 +50,37 @@ namespace DeerootCards.Cards
         /// <summary>Circles displayed / kills per full streak cycle. Retune freely.</summary>
         public const int LoopLength = 5;
 
+        /// <summary>
+        /// How long after its last damaging hit a player can still be credited
+        /// for an "environment finished the job" death (knockback into a wall,
+        /// off the map edge, momentum death). Pure "last player ever" would
+        /// credit a tap from 30 seconds ago; 5s covers any physical knockback.
+        /// </summary>
+        private const float CreditWindowSeconds = 5f;
+
         private static bool harmonyApplied;
 
         private static readonly Dictionary<int, int> streaks = new Dictionary<int, int>();
+
+        /// <summary>
+        /// Per-victim "last player that damaged me (and when)" — DoDamage ticks
+        /// with a null damagingPlayer (wall/void/fall) must NOT clobber this,
+        /// unlike vanilla's data.lastSourceOfDamage which they do. Keyed by
+        /// playerID like `streaks`; per-client state, same semantics.
+        /// </summary>
+        private struct LastHit
+        {
+            public Player player;
+            public float time;
+        }
+
+        /// <summary>
+        /// Per-victim "last player that damaged me (and when)" — DoDamage ticks
+        /// with a null damagingPlayer (wall/void/fall) must NOT clobber this,
+        /// unlike vanilla's data.lastSourceOfDamage which they do. Keyed by
+        /// playerID like `streaks`; per-client state, same semantics.
+        /// </summary>
+        private static readonly Dictionary<int, LastHit> lastPlayerHurtBy = new Dictionary<int, LastHit>();
 
         public static void Init()
         {
@@ -56,6 +90,7 @@ namespace DeerootCards.Cards
             }
             harmonyApplied = true;
             var harmony = new Harmony("com.deeroot.cards.killstreak");
+            harmony.PatchAll(typeof(KillStreakAttributionPatch));
             harmony.PatchAll(typeof(KillStreakDeathPatch));
             harmony.PatchAll(typeof(KillStreakDeathPhoenixPatch));
 
@@ -109,6 +144,10 @@ namespace DeerootCards.Cards
             if (victimIsOurBot)
             {
                 Player botKiller = data.lastSourceOfDamage;
+                // Bots share master.playerID, so consume the slot here too —
+                // bot deaths must not leave a stale shooter behind (they never
+                // reach CreditKiller's consume).
+                lastPlayerHurtBy.Remove(victim.playerID);
                 UnityEngine.Debug.Log(
                     $"[DEER] KillStreak: bot of player {victim.playerID} died (killer: {(botKiller != null && botKiller.data != null ? botKiller.data.name : "none")}) — not a streak kill"
                 );
@@ -124,9 +163,51 @@ namespace DeerootCards.Cards
             CreditKiller(data, victim);
         }
 
+        // ---- killer resolution --------------------------------------------------
+
+        /// <summary>Called by KillStreakAttributionPatch on each real player hit.</summary>
+        private static void RecordPlayerHit(int victimPlayerID, Player damagingPlayer)
+        {
+            lastPlayerHurtBy[victimPlayerID] = new LastHit { player = damagingPlayer, time = Time.time };
+        }
+
+
+        /// <summary>
+        /// Prefers our knockback-safe `lastPlayerHurtBy` table (written every
+        /// non-null DoDamage tick, never clobbered by environment ticks) when
+        /// the victim died within CreditWindowSeconds of the last player hit;
+        /// otherwise falls back to vanilla `data.lastSourceOfDamage`.
+        /// CONSUME-AFTER-READ: the victim's slot is removed here, immediately
+        /// after the lookup — this is the single lifecycle point. An earlier
+        /// version removed the slot in OnPlayerDeath BEFORE CreditKiller ran,
+        /// wiping the witness and silently disabling the whole feature
+        /// (playtest-caught 2026-10).
+        /// </summary>
+        private static Player ResolveKiller(CharacterData victimData, Player victim)
+        {
+            if (lastPlayerHurtBy.TryGetValue(victim.playerID, out LastHit lastHit))
+            {
+                lastPlayerHurtBy.Remove(victim.playerID);
+                float since = Time.time - lastHit.time;
+                bool withinWindow = since >= 0f && since <= CreditWindowSeconds;
+                if (withinWindow)
+                {
+                    if (lastHit.player != null && lastHit.player != victimData.lastSourceOfDamage)
+                    {
+                        UnityEngine.Debug.Log(
+                            $"[DEER] KillStreak: credited via knockback/started-kill ({since:F1}s after last player hit)"
+                        );
+                    }
+                    return lastHit.player;
+                }
+                UnityEngine.Debug.Log("[DEER] KillStreak: knockback credit window expired — falling back to vanilla attribution");
+            }
+            return victimData.lastSourceOfDamage;
+        }
+
         private static void CreditKiller(CharacterData victimData, Player victim)
         {
-            Player killer = victimData.lastSourceOfDamage;
+            Player killer = ResolveKiller(victimData, victim);
             if (killer == null || killer == victim)
             {
                 return; // environment or suicide — nobody's streak grows
@@ -206,6 +287,7 @@ namespace DeerootCards.Cards
         private static void ResetAll()
         {
             streaks.Clear();
+            lastPlayerHurtBy.Clear();
             UnityEngine.Debug.Log("[DEER] KillStreak: new game — all streaks reset");
         }
 
@@ -316,6 +398,32 @@ namespace DeerootCards.Cards
             private static void Postfix(HealthHandler __instance)
             {
                 KillStreakTracker.OnPlayerDeath(__instance);
+            }
+        }
+
+        // Knockback-safe killer attribution: vanilla DoDamage overwrites
+        // data.lastSourceOfDamage on EVERY tick, including environment hits
+        // with damagingPlayer == null — a knockback-into-wall kill runs its
+        // environment tick LAST, wiping the shooter before RPCA_Die. This
+        // prefix only ever writes when damagingPlayer != null, so the last
+        // real shooter survives until death clears the slot. Prefix (not
+        // postfix) keeps writes strictly before same-call death Broadcast.
+        internal static class KillStreakAttributionPatch
+        {
+            [HarmonyPatch(typeof(HealthHandler), "DoDamage")]
+            [HarmonyPrefix]
+            private static void Prefix(HealthHandler __instance, Player damagingPlayer)
+            {
+                if (damagingPlayer == null)
+                {
+                    return; // environment click — leave the last real shooter in place
+                }
+                var victimData = __instance != null ? __instance.GetComponent<CharacterData>() : null;
+                if (victimData == null || victimData.player == null)
+                {
+                    return;
+                }
+                KillStreakTracker.RecordPlayerHit(victimData.player.playerID, damagingPlayer);
             }
         }
     }
