@@ -6,7 +6,7 @@ namespace DeerootCards.Cards
 {
     /// <summary>
     /// Shared "hand a specific card to a player" helper (the future programmatic
-    /// award path that OneShotCardPoolFilter's dev-note promised).
+    /// award path that CardPoolFilter's dev-note promised).
     ///
     /// Faithful result of vanilla `ApplyCardStats.RPCA_Pick` (decompile
     /// ApplyCardStats.cs:42-104), driven from a CardInfo MASTER prefab instead

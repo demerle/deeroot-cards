@@ -460,16 +460,36 @@ The game code is already decompiled on the linux drive:
   hotfix was REVERTED at owner request (2026-10-01); Simulacrum bots spawn at default
   prefab scale, only HP is inherited.
 
-- **One-shot cards out of the pick pool (compiled clean, runtime playtest pending)**:
-  every between-round offer is drawn from ONE private method — `CardChoice.GetRanomCard()`
-  (decompile CardChoice.cs 244-285), rarity-weighting `CardChoice.instance.cards`.
-  Exclusion recipe: Harmony prefix/postfix on that method — prefix swaps `cards` to a
-  filtered copy (drop every `OneShotAbility.IsOneShot(cardName)`), postfix restores.
+- **Banned cards out of the pick pool — `CardPoolFilter.cs` (compiled clean, runtime
+  playtest pending; replaces the failed OneShotCardPoolFilter of 2026-10-01)**:
+  ROOT CAUSE CONFIRMED IN GAME LOG (2026-10-02): on modded installs the between-round
+  offers are NOT drawn by vanilla `CardChoice.GetRanomCard()` — pykess's
+  CardChoiceSpawnUniqueCardPatch (ships with every modded ROUNDS AND THIS TEMPLATE)
+  replaces `SpawnUniqueCard` wholesale (prefix returns false) and draws via
+  `Cards.instance.GetRandomCardWithCondition(...)`, which reads
+  `CardChoice.instance.cards` DIRECTLY. A patch on GetRanomCard arms fine and
+  NEVER RUNS (confirmed: armed log printed, zero rollout lines, banned cards still
+  offered). Fix: the same array-swap basis is patched on ALL THREE funnels —
+  `ModdingUtils.Utils.Cards.GetRandomCardWithCondition`,
+  `Cards.NORARITY_GetRandomCardWithCondition`, and vanilla `GetRanomCard` —
+  prefix swaps `cards` to a filtered copy (drop every name in the ban set),
+  postfix restores. Every funnel prefix/postfix is funnel-labeled in its log so
+  the ACTIVE pick path on any install is self-evident from the log.
+  Beware the namespace collision: our namespace `DeerootCards.Cards` shadows
+  the class name `Cards` — alias it (`using ModdingCards = ModdingUtils.Utils.Cards`).
+  Ban set is seeded centrally at Init (Meteor, Time Stop, Simulacrum, Power Up);
+  matching is `OrdinalIgnoreCase`; `CardPoolFilter.BanFromPicks(...)` extends it.
+  Diagnosis guarantees (old filter could fail with zero visible differences — the
+  suspected cause of the user's "didn't work"): null patch-target → LogError; empty
+  Patch() application → LogError; first roll logs pool size + every banned card found
+  with its literal spelling; postfix re-verifies the returned card and screams if a
+  banned one escaped.
   No transpiler; weights self-normalize because the orig recomputes them from whatever
   array it sees. NEVER return an empty filtered pool (`SpawnUniqueCard` recurses
   infinitely when it can't find a spawnable card) and never re-roll in the postfix.
   Deterministic on all clients (names are const strings) → Photon spawn stays consistent.
-  Direct `CardChoice.AddCard(CardInfo)` bypasses the pool — that's the future award path.
+  Direct `CardChoice.AddCard(CardInfo)` bypasses the pool — banned cards remain fully
+  spawnable through direct paths (OneShotAbility rewards, CardAward).
 
 ## KillStreak card (KillStreakCard.cs; compiled clean, runtime playtest pending)
 - **Killer attribution is FREE — `data.lastSourceOfDamage` (CharacterData:86)**: vanilla
