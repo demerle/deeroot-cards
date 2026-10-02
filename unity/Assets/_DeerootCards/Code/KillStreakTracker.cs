@@ -23,10 +23,13 @@ namespace DeerootCards.Cards
     ///     the killer's OWN client simulated or received the lethal damage
     ///     with itself as source, making it the authority for its own streak.
     ///   • Simulacrum/Sovereign bots inherit their master's playerID, so a bot
-    ///     kill simply increments the master's streak entry, and a bot victim
-    ///     must NOT reset it (registry-gated via SovereignBot/SimulacrumBot.
-    ///     IsBot — bots share master.playerID, a plain playerID reset would
-    ///     wipe the master's real streak with it).
+    ///     kill increments the master's streak entry (bots are the master's
+    ///     proxies). A bot DEATH is out of the ledger entirely: it neither
+    ///     resets its master's streak (registry-gated via SovereignBot/
+    ///     SimulacrumBot.IsBot — bots share master.playerID, a plain playerID
+    ///     reset would wipe the master's real streak with it) NOR credits the
+    ///     killer — otherwise an enemy holding KillStreak could farm our bot
+    ///     spawns as free milestone kills (anti-farm rule, 2026-10).
     ///
     /// State: static Dictionary keyed by playerID — survives round boundaries
     /// with zero extra plumbing (players keep their playerID within a match),
@@ -96,16 +99,27 @@ namespace DeerootCards.Cards
             Player victim = data.player;
 
             // KillStreak holders may hold it on the master while bots share the
-            // playerID — bot deaths must not reset their master's streak.
+            // playerID — and a bot death is entirely OUT of the streak ledger
+            // (anti-farm rule 2026-10): it must neither reset its master's
+            // streak NOR credit anyone. Without the credit gate, an enemy with
+            // KillStreak could farm our Sovereign/Simulacrum bot spawns as free
+            // milestone kills (Meteor/Simulacrum/Time Stop). Bot KILLS still
+            // credit the master normally — only bot DEATHS are ignored.
             bool victimIsOurBot = SovereignBot.IsBot(victim) || SimulacrumBot.IsBot(victim);
-            if (!victimIsOurBot)
+            if (victimIsOurBot)
             {
-                if (GetStreak(victim.playerID) != 0)
-                {
-                    UnityEngine.Debug.Log($"[DEER] KillStreak: player {victim.playerID} died — streak reset");
-                }
-                streaks[victim.playerID] = 0;
+                Player botKiller = data.lastSourceOfDamage;
+                UnityEngine.Debug.Log(
+                    $"[DEER] KillStreak: bot of player {victim.playerID} died (killer: {(botKiller != null && botKiller.data != null ? botKiller.data.name : "none")}) — not a streak kill"
+                );
+                return;
             }
+
+            if (GetStreak(victim.playerID) != 0)
+            {
+                UnityEngine.Debug.Log($"[DEER] KillStreak: player {victim.playerID} died — streak reset");
+            }
+            streaks[victim.playerID] = 0;
 
             CreditKiller(data, victim);
         }

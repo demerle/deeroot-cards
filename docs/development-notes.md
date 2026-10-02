@@ -517,11 +517,16 @@ The game code is already decompiled on the linux drive:
 - **Duplicate one-shot grants work**: `allowMultiple=false` only affects pick-pool
   dedupe (`SpawnUniqueCard`); programmatic grants always apply. `OneShotAbility.Consume`
   removes the FIRST matching index — one copy per consume. NOT yet runtime-verified.
-- **Bot interplay**: bots share master.playerID, but a plain `streaks[bot.playerID]=0`
-  on bot death would wipe the MASTER's streak — bot victims are registry-gated via
-  `SovereignBot.IsBot / SimulacrumBot.IsBot`. Bot KILLS credit the master (same
-  playerID key; bot prefab view is owned by the master's client so the IsMine gate
-  passes there).
+- **Bot interplay (anti-farm rule, playtest-caught 2026-10)**: bots share
+  master.playerID, but a plain `streaks[bot.playerID]=0` on bot death would wipe the
+  MASTER's streak — bot victims are registry-gated via `SovereignBot.IsBot /
+  SimulacrumBot.IsBot`. Bot KILLS credit the master (same playerID key; bot prefab
+  view is owned by the master's client so the IsMine gate passes there). A bot DEATH
+  is out of the ledger ENTIRELY: no reset AND no killer credit — without the credit
+  gate an enemy holding KillStreak farms our Sovereign/Simulacrum bot spawns as free
+  milestone kills (user-reported exploit, fixed in OnPlayerDeath with an early
+  `return` + `not a streak kill` log). Scope: our own bots only; other mods'
+  bots/vanilla AI are not matched.
 - **Persistence across rounds**: static `Dictionary<int,int>` — players keep their
   playerID within a match, so count survives round boundaries for free; cleared on
   `GameModeHooks.HookGameStart` so a fresh match starts fresh.
