@@ -4,7 +4,7 @@ using UnityEngine;
 namespace DeerootCards.Cards
 {
     /// <summary>
-    /// "Slow and Steady": +85% damage, -30% bullet speed AND -40% projectile
+    /// "Slow and Steady": +100% damage, -15% bullet speed AND -40% projectile
     /// simulation speed. Plain vanilla stat card — all fields are multipliers
     /// copied off the card's Gun (same recipe as Power Up's gun.damage):
     /// gun.projectileSpeed scales bullet launch force, and the separate
@@ -18,10 +18,10 @@ namespace DeerootCards.Cards
 
         public override void SetupCard(CardInfo cardInfo, Gun gun, ApplyCardStats cardStats, CharacterStatModifiers statModifiers, Block block)
         {
-            // +85% damage (multiplier field)
-            gun.damage = 1.85f;
-            // -30% bullet speed (multiplier field; 0.70 = 70% of normal)
-            gun.projectileSpeed = 0.7f;
+            // +100% damage (multiplier field)
+            gun.damage = 2.0f;
+            // -15% bullet speed (multiplier field; 0.85 = 85% of normal)
+            gun.projectileSpeed = 0.85f;
             // -40% projectile simulation speed (separate vanilla stat, also a
             // multiplier on the bullet's simulation) — typo in the field name
             // is from vanilla.
@@ -53,14 +53,14 @@ namespace DeerootCards.Cards
                 {
                     positive = true,
                     stat = "Damage",
-                    amount = "+85%",
+                    amount = "+100%",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 },
                 new CardInfoStat
                 {
                     positive = false,
                     stat = "Bullet Speed",
-                    amount = "-30%",
+                    amount = "-15%",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 },
                 new CardInfoStat
