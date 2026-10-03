@@ -16,9 +16,11 @@ namespace DeerootCards.Cards
 
         public override void SetupCard(CardInfo cardInfo, Gun gun, ApplyCardStats cardStats, CharacterStatModifiers statModifiers, Block block)
         {
-            // Effect is deck-driven via AbilityCooldowns.Sources — no vanilla
-            // stat fields here because there is no vanilla "ability cooldown"
-            // stat to copy.
+            // Cooldown effect is deck-driven via AbilityCooldowns.Sources (no
+            // vanilla stat to copy). +25% movement speed is a plain vanilla
+            // multiplier stat, set here so ApplyCardStats stacks it per copy
+            // (same pattern as PowerUpCard's gun.damage).
+            statModifiers.movementSpeed = 1.25f;
         }
 
         public override void OnAddCard(Player player, Gun gun, GunAmmo gunAmmo, CharacterData data, HealthHandler health, Gravity gravity, Block block, CharacterStatModifiers characterStats)
@@ -46,6 +48,13 @@ namespace DeerootCards.Cards
                     positive = true,
                     stat = "All Ability Cooldowns",
                     amount = "-50%",
+                    simepleAmount = CardInfoStat.SimpleAmount.Some
+                },
+                new CardInfoStat
+                {
+                    positive = true,
+                    stat = "Movement speed",
+                    amount = "+25%",
                     simepleAmount = CardInfoStat.SimpleAmount.Some
                 }
             };
