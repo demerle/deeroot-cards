@@ -451,16 +451,14 @@ namespace DeerootCards.Cards
 
             bot.player.playerID = master.playerID;
             bot.player.teamID = master.teamID;
-            bot.player.SetColors();
+            BotSkinApplier.Apply(master, bot);
             bot.SetAI(master);
             bot.isPlaying = true;
             bot.healthHandler.DestroyOnDeath = true;
 
-            var skin = bot.GetComponentInChildren<PlayerSkinHandler>(true);
-            if (skin != null)
-            {
-                skin.ToggleSimpleSkin(true);
-            }
+            // Skin handling (SetColors + full-skin rebuild) is done entirely by
+            // BotSkinApplier.Apply above — the old ToggleSimpleSkin(true) here
+            // only flipped bools without repairing visuals and has been removed.
 
             if (!view.IsMine)
             {

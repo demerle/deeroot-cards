@@ -436,7 +436,7 @@ namespace DeerootCards.Cards
 
             bot.player.playerID = master.playerID;
             bot.player.teamID = master.teamID;
-            bot.player.SetColors();
+            BotSkinApplier.Apply(master, bot);
             bot.SetAI(master);
             bot.isPlaying = true;
             bot.healthHandler.DestroyOnDeath = true;
@@ -445,12 +445,6 @@ namespace DeerootCards.Cards
             float clampedHealth = Mathf.Max(botMaxHealth, 1f);
             bot.maxHealth = clampedHealth;
             bot.health = clampedHealth;
-
-            var skin = bot.GetComponentInChildren<PlayerSkinHandler>(true);
-            if (skin != null)
-            {
-                skin.ToggleSimpleSkin(true);
-            }
 
             if (!view.IsMine)
             {
