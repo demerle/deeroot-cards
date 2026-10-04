@@ -544,6 +544,23 @@ The game code is already decompiled on the linux drive:
   milestone kills (user-reported exploit, fixed in OnPlayerDeath with an early
   `return` + `not a streak kill` log). Scope: our own bots only; other mods'
   bots/vanilla AI are not matched.
+- **MULTIPLAYER FORENSICS (2026-10-02 "candlestick" incident, both clients' logs
+  compared)**: the streak pipeline was HONEST — 52 milestone RPCs sent = 52 received
+  on every client, all 97 `kill #` credits were real death events, Photon duplicates
+  nothing. The volcano was the reward loop itself: **Meteor (a milestone reward) is a
+  500-dmg/~15,000-force projectile that yields 2–4 credits per cast** (direct kill +
+  map-out knockback deaths inside the 5s window), so milestones paid for themselves —
+  kill #3 → free Meteor → 2–4 kills → Simulacrum + Time Stop → wrap → free Meteor →
+  41 casts ≈ 52 grants ≈ 97 credits in one session. Fixes shipped: (a) 10s minimum
+  between milestone grants per killer (`MilestoneGrantCooldownSeconds`, key
+  `nextGrantTime[killerPlayerID]`, cleared on HookGameStart) — a skipped entry is
+  MISSED, not queued, the counter keeps running; (b) `lastPlayerHurtBy` is keyed by
+  the victim's **Player instance**, NOT playerID — bots share the master's playerID,
+  so int-keyed slots merged: enemy hits on a bot overwrote the master's pending
+  witness and each bot death consumed it (246 bot deaths in that session erasing the
+  master's knockback witnesses). (c) `kill #` log now carries victim/killer ids +
+  attribution cause (`knockback-window` vs `vanilla(dir)`) — cross-log work showed a
+  credit line with no identity is undiagnosable.
 - **Persistence across rounds**: static `Dictionary<int,int>` — players keep their
   playerID within a match, so count survives round boundaries for free; cleared on
   `GameModeHooks.HookGameStart` so a fresh match starts fresh.
@@ -565,6 +582,7 @@ The game code is already decompiled on the linux drive:
   Verify installs after registering: log
   `string.Join(", ", harmony.GetPatchedMethods().Select(m => m.Name))` at init so a
   no-op can never hide again.
+
 - **PITFALL (playtest-caught 2026-10-01): Unbound `GameModeManager.AddHook` actions
   must return `IEnumerator`.** A `gm => { body(); }` lambda converts to
   `Func<..., IEnumerator>` only with `null` → NRE in `ErrorTolerantHook` AFTER the

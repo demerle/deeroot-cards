@@ -58,15 +58,43 @@ namespace DeerootCards.Cards
         /// </summary>
         private const float CreditWindowSeconds = 5f;
 
+        /// <summary>
+        /// Minimum time between milestone card grants for one player.
+        ///
+        /// Multiplayer-forensics root cause (2026-10-02, candlestick session):
+        /// the streak pipeline itself was honest (52 milestone RPCs sent =
+        /// 52 received, all 97 credited kills were REAL death events), but
+        /// Meteor — a milestone reward — is a 500-damage/~15,000-force
+        /// projectile that produces 2–4 credits per cast (direct kill + map-out
+        /// knockback deaths via the credit window). Milestone milestones thus
+        /// PAID FOR THEMSELVES: kill #3 → free Meteor → meteor lands → kills
+        /// #3–#5 → free Simulacrum + Time Stop → wrap → free Meteor → repeat.
+        /// 41 Meteor casts ≈ 52 grants ≈ 97 credits in one session. This
+        /// cooldown shatters the self-funding loop: the streak counter is
+        /// unaffected, but a milestone skipped while the cooldown runs (or
+        /// crossed over mid-skip) is missed, so grants settle to ≥1 per
+        /// cooldown even in an instant-multi-kill burst.
+        /// </summary>
+        private const float MilestoneGrantCooldownSeconds = 10f;
+
         private static bool harmonyApplied;
 
         private static readonly Dictionary<int, int> streaks = new Dictionary<int, int>();
 
+        /// <summary>Per-killer earliest Time.time the next milestone grant may fire.</summary>
+        private static readonly Dictionary<int, float> nextGrantTime = new Dictionary<int, float>();
+
         /// <summary>
-        /// Per-victim "last player that damaged me (and when)" — DoDamage ticks
-        /// with a null damagingPlayer (wall/void/fall) must NOT clobber this,
-        /// unlike vanilla's data.lastSourceOfDamage which they do. Keyed by
-        /// playerID like `streaks`; per-client state, same semantics.
+        /// Per-VICTIM "last player that damaged me (and when)" — keyed by the
+        /// victim's Player INSTANCE, not playerID. Bots share their master's
+        /// playerID (Sovereign/Simulacrum inherit it), so an int playerID key
+        /// merged every bot slot with its master's: an enemy hitting a bot
+        /// overwrote the master's pending witness, and each bot death consumed
+        /// it (candlestick session: 246 bot deaths erasing the master's
+        /// knockback witnesses). Instance keys keep master and bot slots
+        /// independent. DoDamage ticks with a null damagingPlayer (wall/void/
+        /// fall) must NOT clobber this, unlike vanilla's
+        /// data.lastSourceOfDamage which they do.
         /// </summary>
         private struct LastHit
         {
@@ -74,13 +102,7 @@ namespace DeerootCards.Cards
             public float time;
         }
 
-        /// <summary>
-        /// Per-victim "last player that damaged me (and when)" — DoDamage ticks
-        /// with a null damagingPlayer (wall/void/fall) must NOT clobber this,
-        /// unlike vanilla's data.lastSourceOfDamage which they do. Keyed by
-        /// playerID like `streaks`; per-client state, same semantics.
-        /// </summary>
-        private static readonly Dictionary<int, LastHit> lastPlayerHurtBy = new Dictionary<int, LastHit>();
+        private static readonly Dictionary<Player, LastHit> lastPlayerHurtBy = new Dictionary<Player, LastHit>();
 
         public static void Init()
         {
@@ -144,10 +166,9 @@ namespace DeerootCards.Cards
             if (victimIsOurBot)
             {
                 Player botKiller = data.lastSourceOfDamage;
-                // Bots share master.playerID, so consume the slot here too —
-                // bot deaths must not leave a stale shooter behind (they never
-                // reach CreditKiller's consume).
-                lastPlayerHurtBy.Remove(victim.playerID);
+                // Bots each own their own hit-witness slot now (Player-keyed),
+                // but a bot death still leaves no stale record behind.
+                lastPlayerHurtBy.Remove(victim);
                 UnityEngine.Debug.Log(
                     $"[DEER] KillStreak: bot of player {victim.playerID} died (killer: {(botKiller != null && botKiller.data != null ? botKiller.data.name : "none")}) — not a streak kill"
                 );
@@ -166,9 +187,13 @@ namespace DeerootCards.Cards
         // ---- killer resolution --------------------------------------------------
 
         /// <summary>Called by KillStreakAttributionPatch on each real player hit.</summary>
-        private static void RecordPlayerHit(int victimPlayerID, Player damagingPlayer)
+        private static void RecordPlayerHit(Player victim, Player damagingPlayer)
         {
-            lastPlayerHurtBy[victimPlayerID] = new LastHit { player = damagingPlayer, time = Time.time };
+            if (victim == null)
+            {
+                return;
+            }
+            lastPlayerHurtBy[victim] = new LastHit { player = damagingPlayer, time = Time.time };
         }
 
 
@@ -177,17 +202,19 @@ namespace DeerootCards.Cards
         /// non-null DoDamage tick, never clobbered by environment ticks) when
         /// the victim died within CreditWindowSeconds of the last player hit;
         /// otherwise falls back to vanilla `data.lastSourceOfDamage`.
+        /// `cause` identifies which path won (for the kill-credit log).
         /// CONSUME-AFTER-READ: the victim's slot is removed here, immediately
         /// after the lookup — this is the single lifecycle point. An earlier
         /// version removed the slot in OnPlayerDeath BEFORE CreditKiller ran,
         /// wiping the witness and silently disabling the whole feature
         /// (playtest-caught 2026-10).
         /// </summary>
-        private static Player ResolveKiller(CharacterData victimData, Player victim)
+        private static Player ResolveKiller(CharacterData victimData, Player victim, out string cause)
         {
-            if (lastPlayerHurtBy.TryGetValue(victim.playerID, out LastHit lastHit))
+            LastHit lastHit;
+            if (lastPlayerHurtBy.TryGetValue(victim, out lastHit))
             {
-                lastPlayerHurtBy.Remove(victim.playerID);
+                lastPlayerHurtBy.Remove(victim);
                 float since = Time.time - lastHit.time;
                 bool withinWindow = since >= 0f && since <= CreditWindowSeconds;
                 if (withinWindow)
@@ -198,16 +225,23 @@ namespace DeerootCards.Cards
                             $"[DEER] KillStreak: credited via knockback/started-kill ({since:F1}s after last player hit)"
                         );
                     }
+                    cause = "knockback-window";
                     return lastHit.player;
                 }
                 UnityEngine.Debug.Log("[DEER] KillStreak: knockback credit window expired — falling back to vanilla attribution");
+                cause = "vanilla(dir)";
+            }
+            else
+            {
+                cause = "vanilla(dir)";
             }
             return victimData.lastSourceOfDamage;
         }
 
         private static void CreditKiller(CharacterData victimData, Player victim)
         {
-            Player killer = ResolveKiller(victimData, victim);
+            string cause;
+            Player killer = ResolveKiller(victimData, victim, out cause);
             if (killer == null || killer == victim)
             {
                 return; // environment or suicide — nobody's streak grows
@@ -231,13 +265,31 @@ namespace DeerootCards.Cards
 
             int oldDisplayed = DisplayedCount(oldStreak);
             int newDisplayed = DisplayedCount(newStreak);
-            UnityEngine.Debug.Log($"[DEER] KillStreak: {killer.data.name} kill #{newStreak} (streak {oldDisplayed} → {newDisplayed})");
+            UnityEngine.Debug.Log(
+                $"[DEER] KillStreak: {killer.data.name}(p{killer.playerID}) killed {victim.data.name}(p{victim.playerID}) — kill #{newStreak} (streak {oldDisplayed} → {newDisplayed}) via {cause}"
+            );
 
             string milestoneCard = MilestoneCardFor(newDisplayed);
             if (milestoneCard == null || newDisplayed == oldDisplayed)
             {
                 return;
             }
+
+            // Milestone pacing (root cause 2026-10-02): milestone cards are
+            // kill generators (Meteor = 1 direct kill + knockback map-outs),
+            // so back-to-back milestone entries in one burst paid for
+            // themselves. A skipped entry is MISSED, not queued: the counter
+            // keeps running, but the grant resolves to ≥1 per cooldown.
+            float now = Time.time;
+            float gateTime;
+            if (nextGrantTime.TryGetValue(killer.playerID, out gateTime) && now < gateTime)
+            {
+                UnityEngine.Debug.Log(
+                    $"[DEER] KillStreak milestone '{milestoneCard}' for player {killer.playerID} SKIPPED — pacing cooldown ({gateTime - now:F1}s left)"
+                );
+                return;
+            }
+            nextGrantTime[killer.playerID] = now + MilestoneGrantCooldownSeconds;
 
             // Each client runs the same deterministic grant (no card adds at
             // runtime are reliable single-client edits in ROUNDS).
@@ -287,6 +339,7 @@ namespace DeerootCards.Cards
         private static void ResetAll()
         {
             streaks.Clear();
+            nextGrantTime.Clear();
             lastPlayerHurtBy.Clear();
             UnityEngine.Debug.Log("[DEER] KillStreak: new game — all streaks reset");
         }
@@ -423,7 +476,7 @@ namespace DeerootCards.Cards
                 {
                     return;
                 }
-                KillStreakTracker.RecordPlayerHit(victimData.player.playerID, damagingPlayer);
+                KillStreakTracker.RecordPlayerHit(victimData.player, damagingPlayer);
             }
         }
     }
